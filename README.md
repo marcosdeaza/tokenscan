@@ -52,8 +52,10 @@ Cada ciclo (5 minutos por defecto), el agente sigue un pipeline de
 asesora, la matemática ejecuta):
 
 1. Recopila precios, velas e indicadores (RSI, EMA, ATR, MACD, Bollinger) en el
-   timeframe de trading y el filtro macro (EMA diaria larga) — **sin look-ahead**:
-   la EMA diaria de hoy solo se usa a partir del cierre de ayer.
+   timeframe de trading (`4h`, el mismo del backtest validado — timeframes
+   menores dan cruces de EMA ruidosos que el gate filtra) y el filtro macro
+   (EMA diaria larga) — **sin look-ahead**: la EMA diaria de hoy solo se usa a
+   partir del cierre de ayer.
 2. El LLM decide **dirección** (buy/sell/hold) leyendo señales técnicas, régimen,
    cartera, noticias y on-chain. Sin LLM, usa la estrategia `macro_gate`.
 3. **El gate macro es la ley**: veto a compras fuera de régimen alcista y hold de

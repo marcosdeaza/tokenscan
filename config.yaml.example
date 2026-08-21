@@ -4,7 +4,7 @@
 # ============================================================
 
 mode: paper          # paper | live | backtest
-timeframe: 5m        # 1m, 5m, 15m, 1h, 4h, 1d...
+timeframe: 4h        # 4h = la validada en el backtest (5m/1m dan puro ruido de EMA)
 interval: 300        # segundos entre cada ciclo del agente (5 min)
 
 # Capital virtual inicial (modo paper)

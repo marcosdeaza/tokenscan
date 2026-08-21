@@ -85,7 +85,7 @@ class JupiterConfig(BaseModel):
 
 class Settings(BaseModel):
     mode: str = "paper"
-    timeframe: str = "5m"
+    timeframe: str = "4h"
     interval: int = 300
     paper_capital: float = 100.0
     trading_pairs: list[str] = Field(default_factory=lambda: ["BTC/USDT", "ETH/USDT"])
