@@ -122,6 +122,7 @@ docker compose logs -f tokenscan
 ## 📚 Documentación educativa
 
 - [docs/guide.md](docs/guide.md) — La guía completa: cómo funciona cada pieza y por qué
+- [docs/formulas.md](docs/formulas.md) — **Cada fórmula** del proyecto, explicada y con sus referencias
 - `tokenscan/quant/indicators.py` — las fórmulas, comentadas
 - `tokenscan/quant/risk.py` — gestión de riesgo explicada
 
