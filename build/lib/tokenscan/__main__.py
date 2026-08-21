@@ -30,7 +30,7 @@ def build_context(settings: Settings, with_exchange: bool | None = None):
     db = Database(settings.data_dir.rstrip("/") + "/tokenscan.db")
     broker = PaperBroker(settings, db)
     broker.ensure_wallet()
-    want_exchange = with_exchange if with_exchange is not None else False
+    want_exchange = with_exchange if with_exchange is not None else settings.mode == "live"
     exchange = ExchangeClient(settings) if want_exchange else None
     market = MarketData(exchange)
     agent = LLMAgent(settings, broker, db, market)
@@ -38,7 +38,7 @@ def build_context(settings: Settings, with_exchange: bool | None = None):
 
 
 def cmd_run(settings: Settings) -> None:
-    _db, _broker, _market, agent = build_context(settings, with_exchange=True)
+    _db, _broker, _market, agent = build_context(settings)
     log.info("TokenScan arrancando en modo %s", settings.mode)
     log.info("Agente: %s", "LLM (" + settings.llm_model + ")" if agent.available else "determinista (RSI)")
     try:
@@ -53,7 +53,7 @@ def cmd_telegram(settings: Settings) -> None:
     if not settings.telegram_bot_token:
         log.error("TELEGRAM_BOT_TOKEN no configurado. Mira .env.example")
         sys.exit(1)
-    db, broker, _market, agent = build_context(settings, with_exchange=True)
+    db, broker, _market, agent = build_context(settings)
     from .telegram.bot import run_telegram
     app = run_telegram(settings, db, broker, agent)
     log.info("Bot de Telegram arrancando...")

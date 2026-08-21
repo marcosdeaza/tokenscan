@@ -18,7 +18,7 @@ ssh "$HOST" "docker --version && docker compose version" || {
 }
 
 echo "==> Subiendo TokenScan..."
-rsync -av --exclude '.venv' --exclude '__pycache__' --exclude 'data' --exclude '.git' \
+rsync -av --exclude '.venv' --exclude '__pycache__' --exclude '*.egg-info' --exclude '/data/' --exclude '.git' --exclude '.ruff_cache' \
     ./ "$HOST:~/tokenscan/"
 
 echo "==> Configurando .env en el VPS (si no existe)..."
