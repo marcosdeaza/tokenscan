@@ -32,7 +32,24 @@ class ExchangeClient:
         return ticker["last"]
 
     def fetch_ohlcv(self, pair: str, timeframe: str = "5m", limit: int = 500) -> list:
-        return self.api.fetch_ohlcv(pair, timeframe, limit=limit)
+        """OHLCV con paginacion: ccxt/Binance limita a 1000 velas por llamada.
+        Vamos hacia adelante desde el timestamp calculado hasta cubrir `limit`."""
+        if limit <= 1000:
+            return self.api.fetch_ohlcv(pair, timeframe, limit=limit)
+        chunk = 1000
+        ms = self.api.parse_timeframe(timeframe) * 1000
+        start = int(self.api.milliseconds() - limit * ms)
+        all_rows: list[list] = []
+        since = start
+        while len(all_rows) < limit:
+            batch = self.api.fetch_ohlcv(pair, timeframe, limit=chunk, since=since)
+            if not batch:
+                break
+            all_rows.extend(batch)
+            if len(batch) < chunk:
+                break
+            since = batch[-1][0] + ms
+        return all_rows[-limit:]
 
     def fetch_balance(self) -> dict:
         return self.api.fetch_balance()

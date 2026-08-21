@@ -153,6 +153,8 @@ class Backtester:
                 signal = strategy.entry_signal(df, row)
                 if signal and len(open_positions) < self.s.risk.max_open_trades:
                     atr_value = float(row.get("atr", 0.0)) or 0.0
+                    min_stake = self.s.jupiter.min_trade_usd
+                    max_pct = self.s.effective_max_pct(equity)
                     if atr_value > 0:
                         stake = position_size_atr(
                             self.s.risk, equity, atr_value, price,
@@ -160,9 +162,13 @@ class Backtester:
                             atr_multiplier=self.s.risk.atr_sl_multiplier,
                             open_trades=len(open_positions),
                         )
+                        # Misma politica que el agente live: si el sizing por ATR
+                        # queda por debajo del minimo, usar el % maximo del tier.
+                        if stake < min_stake:
+                            stake = equity * max_pct
                     else:
-                        stake = equity * self.s.risk.max_position_pct
-                    if stake > 1:
+                        stake = equity * max_pct
+                    if stake >= min_stake:
                         exec_price = price * (1 + self.slippage)
                         amount = stake / exec_price
                         open_positions[pair] = {
