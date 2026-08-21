@@ -61,10 +61,12 @@ class LiveBroker(PaperBroker):
         """
         keep_sol = max(self.s.jupiter.min_sol_balance * 4, 0.005)
         sol = self.jupiter.get_sol_balance()
-        excess = sol - keep_sol
+        position_sol = sum(p.amount for p in self.positions.values())
+        excess = sol - keep_sol - position_sol
         if excess <= 0.0001:
             return 0.0
-        log.info("[LIVE] Auto-fund: convirtiendo %.4f SOL -> USDC (reserva gas %.4f)", excess, keep_sol)
+        log.info("[LIVE] Auto-fund: convirtiendo %.4f SOL -> USDC (reserva gas %.4f, posiciones %.4f)",
+                 excess, keep_sol, position_sol)
         try:
             result = self.jupiter.swap(SOL_MINT, USDC_MINT, excess)
         except Exception as e:  # noqa: BLE001
