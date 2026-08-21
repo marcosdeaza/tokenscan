@@ -305,16 +305,25 @@ Acciones válidas: buy, sell, hold.
         return decisions[:self.s.agent.max_trades_per_cycle]
 
     def _position_size(self, price: float, atr_value: float) -> float:
-        """Sizing por volatilidad (reglas Turtle): riesgo fijo % por ATR."""
+        """Sizing por volatilidad (reglas Turtle): riesgo fijo % por ATR.
+
+        Con capital pequeño el sizing ATR puede quedar por debajo del mínimo
+        operativo; en ese caso usa el % máximo por posición para que el bot
+        siga operando con stakes razonables (p. ej. ~20% de $12).
+        """
         from ..quant.risk import position_size_atr
         equity = self.get_available_capital()
+        min_stake = self.s.jupiter.min_trade_usd
         if atr_value and atr_value > 0 and price > 0:
-            return position_size_atr(
+            stake = position_size_atr(
                 self.s.risk, equity, atr_value, price,
                 risk_pct=self.s.risk.risk_per_trade_pct,
                 atr_multiplier=self.s.risk.atr_sl_multiplier,
                 open_trades=len(self.broker.open_positions()),
             )
+            if stake < min_stake:
+                stake = equity * self.s.risk.max_position_pct
+            return max(0.0, stake)
         return equity * self.s.risk.max_position_pct
 
     def get_available_capital(self) -> float:
@@ -332,8 +341,9 @@ Acciones válidas: buy, sell, hold.
             stake = d.quantity * price
             if stake > self.broker.get_balance():
                 stake = self.broker.get_balance() * 0.95
-            if stake < 1:
-                log.info("[AGENT] stake too small for %s", d.pair)
+            if stake < self.s.jupiter.min_trade_usd:
+                log.info("[AGENT] stake too small for %s (%.2f < min %.2f)",
+                         d.pair, stake, self.s.jupiter.min_trade_usd)
                 return
             sl, tp = self._stops(d.pair, "long", price)
             pos = self.broker.open_trade(d.pair, "long", stake, price, sl, tp)
