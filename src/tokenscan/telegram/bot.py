@@ -43,8 +43,21 @@ class TokenScanBot:
         self._agent_running = False
         self._agent_task: asyncio.Task | None = None
 
-    async def _agent_loop(self) -> None:
+    def start_agent(self) -> None:
+        if self._agent_running:
+            return
+        self._agent_running = True
+        self._agent_task = asyncio.get_event_loop().create_task(self._agent_loop())
         log.info("[BOT] Agente iniciado (intervalo %ds)", self.s.interval)
+
+    def stop_agent(self) -> None:
+        self._agent_running = False
+        if self._agent_task:
+            self._agent_task.cancel()
+            self._agent_task = None
+        log.info("[BOT] Agente detenido")
+
+    async def _agent_loop(self) -> None:
         while self._agent_running:
             try:
                 decisions = self.agent.run_cycle()
@@ -230,16 +243,12 @@ class TokenScanBot:
         if self._agent_running:
             await update.message.reply_text("🔄 El agente ya está en marcha.")
             return
-        self._agent_running = True
-        self._agent_task = asyncio.get_event_loop().create_task(self._agent_loop())
+        self.start_agent()
         await update.message.reply_text("🚀 Agente arrancado.")
 
     @authorized_only
     async def cmd_agent_stop(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        self._agent_running = False
-        if self._agent_task:
-            self._agent_task.cancel()
-            self._agent_task = None
+        self.stop_agent()
         await update.message.reply_text("🛑 Agente detenido.")
 
     @authorized_only
@@ -346,4 +355,9 @@ def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: L
     ]
     for name, handler in handlers:
         app.add_handler(CommandHandler(name, handler))
+
+    async def _autostart(app: Application) -> None:
+        bot.start_agent()
+
+    app.post_init(_autostart)
     return app

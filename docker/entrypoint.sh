@@ -1,7 +1,7 @@
 #!/bin/sh
 # Entrypoint para el contenedor de TokenScan.
-# Ejecuta el loop del agente y el bot de Telegram. Si el bot no está
-# configurado (sin TELEGRAM_BOT_TOKEN) el agente sigue corriendo.
+# Arranca el bot de Telegram, que inicia el loop del agente automáticamente.
+# Sin TELEGRAM_BOT_TOKEN no hay control remoto; el agente se ejecuta solo.
 
 set -e
 
@@ -16,13 +16,10 @@ fi
 MODE=$(grep '^mode:' "$CONFIG_FILE" | head -1 | awk '{print $2}' || echo paper)
 echo "Arrancando TokenScan (modo: $MODE)"
 
-python -m tokenscan run --config "$CONFIG_FILE" &
-
 if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ "$TELEGRAM_BOT_TOKEN" != "123456789:TU-TOKEN-AQUI" ]; then
-    echo "Bot de Telegram habilitado."
-    python -m tokenscan telegram --config "$CONFIG_FILE" &
+    echo "Bot de Telegram habilitado (agente autónomo activo)."
+    exec python -m tokenscan telegram --config "$CONFIG_FILE"
 else
-    echo "TELEGRAM_BOT_TOKEN no configurado: el bot de Telegram no arrancará (el agente sigue activo)."
+    echo "TELEGRAM_BOT_TOKEN no configurado: arrancando solo el agente."
+    exec python -m tokenscan run --config "$CONFIG_FILE"
 fi
-
-wait
