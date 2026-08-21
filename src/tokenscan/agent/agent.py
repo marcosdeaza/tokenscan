@@ -184,7 +184,12 @@ Acciones válidas: buy, sell, hold.
             temperature=0.3,
             max_tokens=2000,
         )
-        return resp.choices[0].message.content or ""
+        content = resp.choices[0].message.content or ""
+        if not content:
+            log.warning("LLM returned empty content, finish_reason=%s reasoning=%s",
+                        resp.choices[0].finish_reason,
+                        resp.usage.completion_tokens_details.reasoning_tokens if resp.usage else "?")
+        return content
 
     def _parse_llm_response(self, raw: str, prices: dict[str, float]) -> list[Decision]:
         clean = raw.strip()
