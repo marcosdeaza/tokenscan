@@ -93,7 +93,10 @@ class LLMAgent:
                     e.get("signature"),
                 )
 
-        if self.available:
+        if self._risk_gate_blocks_new_trades():
+            log.info("[AGENT] Risk gate activo: no se abren nuevas posiciones (solo gestión de las abiertas).")
+            decisions: list[Decision] = []
+        elif self.available:
             decisions = self._llm_decide()
         else:
             log.info("Sin LLM: usando fallback determinista (%s)", self._fallback_strategy.name)
@@ -137,6 +140,24 @@ class LLMAgent:
                 self.broker._auto_fund()
         except Exception as e:  # noqa: BLE001
             log.warning("[AGENT] Auto-fund en ciclo falló: %s", e)
+
+    def _risk_gate_blocks_new_trades(self) -> bool:
+        """Bloquea abrir nuevas posiciones si se superó la pérdida diaria máxima o
+        si un stop-loss reciente deja al sistema en cooldown."""
+        from datetime import datetime, timedelta, timezone
+        equity = self.broker.get_equity()
+        daily = self.db.daily_pnl(self.broker.wallet_id)
+        if equity > 0 and daily <= -abs(self.s.risk.max_daily_loss_pct) * equity:
+            log.warning("[AGENT] Pérdida diaria %+.2f supera el límite (%.0f%%) — halt",
+                        daily, self.s.risk.max_daily_loss_pct * 100)
+            return True
+        last_sl = self.db.last_stop_loss_time(self.broker.wallet_id)
+        if last_sl:
+            cooldown_end = last_sl + timedelta(minutes=self.s.risk.cooldown_minutes)
+            if datetime.now(timezone.utc) < cooldown_end:
+                log.info("[AGENT] Cooldown tras stop-loss hasta %s", cooldown_end.isoformat())
+                return True
+        return False
 
     def _refresh_prices(self) -> dict[str, float]:
         """Actualiza precios en el broker y devuelve {pair: precio}."""
@@ -409,4 +430,4 @@ Acciones válidas: buy, sell, hold.
     def _log_cycle(self, decisions: list[Decision]) -> None:
         summary = "; ".join(f"{d.action} {d.pair} ({d.confidence:.0f})" for d in decisions)
         self.db.save_decision(self._cycle, summary, "", 0.0)
-        self.db.log_pnl(self.broker.wallet_id, self.broker.get_equity(), 0.0)
+        self.db.log_pnl(self.broker.wallet_id, self.broker.get_equity(), self.db.daily_pnl(self.broker.wallet_id))

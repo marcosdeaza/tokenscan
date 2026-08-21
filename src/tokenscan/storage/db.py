@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -213,6 +214,32 @@ class Database:
         return [dict(r) for r in reversed(rows)]
 
     # --- PnL log ---
+    def daily_pnl(self, wallet_id: int) -> float:
+        """PnL neto de trades cerrados hoy (UTC)."""
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(pnl_abs), 0) FROM trades "
+            "WHERE wallet_id=? AND status='closed' AND close_date >= datetime('now', 'start of day')",
+            (wallet_id,),
+        ).fetchone()
+        return float(row[0] or 0.0)
+
+    def last_stop_loss_time(self, wallet_id: int) -> datetime | None:
+        """Momento UTC del último cierre por stop_loss (para cooldown)."""
+        row = self.conn.execute(
+            "SELECT close_date FROM trades WHERE wallet_id=? AND status='closed' "
+            "AND exit_reason='stop_loss' ORDER BY close_date DESC LIMIT 1",
+            (wallet_id,),
+        ).fetchone()
+        if not row or not row[0]:
+            return None
+        raw = str(row[0]).replace(" ", "T")
+        if raw.endswith("Z"):
+            raw = raw + "+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
     def log_pnl(self, wallet_id: int, equity: float, daily_pnl: float) -> None:
         with self._lock, self.conn:
             self.conn.execute(

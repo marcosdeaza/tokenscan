@@ -78,6 +78,27 @@ class TokenScanBot:
         bot = Bot(self.s.telegram_bot_token)
         await bot.send_message(chat_id=self.s.telegram_chat_id, text=text, parse_mode=ParseMode.HTML)
 
+    async def _hourly_report_loop(self) -> None:
+        """Envia resumen de equity/PnL cada hora."""
+        await asyncio.sleep(3600) # 1 hora antes del primer envio
+        while True:
+            try:
+                snap = self.broker.to_snapshot()
+                stats = snap["stats"]
+                daily = self.db.daily_pnl(self.broker.wallet_id)
+                lines = [
+                    "⏰ <b>Reporte horario</b>",
+                    f"  • Equity: {snap['equity']:.2f} USDT",
+                    f"  • PnL hoy: {daily:+.4f} USDT",
+                    f"  • PnL total: {stats['total_pnl']:.4f} USDT",
+                    f"  • Win rate: {stats['win_rate'] * 100:.1f}% ({stats['trades']} trades)",
+                    f"  • Posiciones: {snap['positions']}",
+                ]
+                await self._send("\n".join(lines))
+            except Exception as e:  # noqa: BLE001
+                log.error("[BOT] Error en reporte horario: %s", e)
+            await asyncio.sleep(3600)
+
     # ── Handlers ──────────────────────────────────────────────
 
     @authorized_only
@@ -95,6 +116,7 @@ class TokenScanBot:
             "/agent_start / agent_stop — arrancar/parar el agente IA\n"
             "/wallet_onchain — ver cartera blockchain real\n"
             "/create_wallet &lt;base|solana&gt; — crear cartera real\n"
+            "/convert — convertir SOL sobrante a USDC (live)\n"
             "/status — estado del sistema",
             parse_mode=ParseMode.HTML,
         )
@@ -339,6 +361,7 @@ def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: L
 
     async def _autostart(app: Application) -> None:
         bot.start_agent()
+        asyncio.get_event_loop().create_task(bot._hourly_report_loop())
 
     app = Application.builder().token(settings.telegram_bot_token).post_init(_autostart).build()
     handlers = [
