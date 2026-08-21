@@ -58,6 +58,8 @@ Cada ciclo (5 minutos por defecto), el agente:
 Las matemáticas detrás de cada módulo están documentadas en
 [docs/formulas.md](docs/formulas.md).
 
+![Backtest 5/50/500€](results/backtest.png)
+
 ---
 
 ## Arquitectura
