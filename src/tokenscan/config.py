@@ -134,6 +134,10 @@ class Settings(BaseModel):
             "solana_rpc_url": os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
             "wallet_private_key": os.getenv("WALLET_PRIVATE_KEY", ""),
         }
+        # El entorno (.env) siempre gana sobre el YAML: evita el crash si una
+        # clave de secreto aparece también en config.yaml.
+        for k in secrets:
+            data.pop(k, None)
         return cls(**data, **secrets)
 
     @property
