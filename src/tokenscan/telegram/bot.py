@@ -22,17 +22,15 @@ log = setup_logger("tokenscan.telegram")
 Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[Any]]
 
 
-def authorized_only(s: Settings) -> Callable[[Handler], Handler]:
-    def decorator(fn: Handler) -> Handler:
-        @wraps(fn)
-        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
-            chat_id = str(update.effective_chat.id) if update.effective_chat else None
-            if chat_id != str(s.telegram_chat_id):
-                await update.message.reply_text("⛔ No autorizado.")
-                return None
-            return await fn(update, context)
-        return wrapper
-    return decorator
+def authorized_only(fn: Handler) -> Handler:
+    @wraps(fn)
+    async def wrapper(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
+        chat_id = str(update.effective_chat.id) if update.effective_chat else None
+        if chat_id != str(self.s.telegram_chat_id):
+            await update.message.reply_text("⛔ No autorizado.")
+            return None
+        return await fn(self, update, context)
+    return wrapper
 
 
 class TokenScanBot:
