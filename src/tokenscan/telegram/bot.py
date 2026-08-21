@@ -336,7 +336,11 @@ class TokenScanBot:
 
 def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: LLMAgent) -> Application:
     bot = TokenScanBot(settings, db, broker, agent)
-    app = Application.builder().token(settings.telegram_bot_token).build()
+
+    async def _autostart(app: Application) -> None:
+        bot.start_agent()
+
+    app = Application.builder().token(settings.telegram_bot_token).post_init(_autostart).build()
     handlers = [
         ("start", bot.cmd_start),
         ("wallet", bot.cmd_wallet),
@@ -356,8 +360,4 @@ def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: L
     for name, handler in handlers:
         app.add_handler(CommandHandler(name, handler))
 
-    async def _autostart(app: Application) -> None:
-        bot.start_agent()
-
-    app.post_init(_autostart)
     return app
