@@ -120,6 +120,42 @@ TokenScan corre 24/7 en tu VPS por menos de 5 €/mes.
 
 ---
 
+## 4b. Carteras blockchain reales
+
+Además del broker virtual, TokenScan puede **crear y consultar carteras reales**
+en Base (EVM) y Solana.
+
+### Dependencias
+
+```bash
+pip install -e ".[dex,solana]"
+```
+
+- **Base/EVM** → `web3` (RPC: `https://mainnet.base.org`)
+- **Solana** → `solders` (RPC: `https://api.mainnet-beta.solana.com`)
+
+### Configuración
+
+```ini
+# .env
+CHAIN=base            # base | solana
+WALLET_PRIVATE_KEY=   # vacía si quieres crear una nueva
+```
+
+### Desde Telegram
+
+- `/create_wallet base` (o `solana`) → genera una cartera nueva, muestra la
+  dirección y la clave privada **una sola vez**. Guárdala a buen recaudo: quien
+  tenga la clave controla la cartera.
+- `/wallet_onchain` → muestra dirección y saldos reales (nativo + USDC) de la
+  cartera configurada.
+
+> Las carteras on-chain son de **solo lectura**: consultan dirección y saldos.
+> La ejecución de operaciones sigue usando el broker configurado (paper por
+> defecto). Enviar/operar fondos en cadena no está habilitado.
+
+---
+
 ## 5. Por qué código original
 
 No forkiamos nada. TokenScan está escrito desde cero, inspirado en los patrones

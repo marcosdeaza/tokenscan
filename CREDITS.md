@@ -14,6 +14,9 @@ implementa, para que cualquier persona pueda auditar y replicar el trabajo.
 | openai | Apache-2.0 | Cliente de modelos LLM compatibles con OpenAI (DeepSeek, OpenRouter, Groq) |
 | pydantic | MIT | Configuración tipada |
 | PyYAML | MIT | Archivos de configuración |
+| web3 | MIT | Carteras on-chain EVM/Base (extra `dex`) |
+| solders | Apache-2.0 | Carteras on-chain Solana (extra `solana`) |
+| base58 | MIT | Codificación de claves Solana (extra `solana`) |
 
 El listado completo de dependencias, con versiones, está en
 [pyproject.toml](pyproject.toml).
