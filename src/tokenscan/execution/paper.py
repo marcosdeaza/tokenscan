@@ -53,7 +53,23 @@ class PaperBroker:
             self._wallet_id = self.db.create_wallet(label, "USDT", self.s.paper_capital)
         else:
             self._wallet_id = w["id"]
+        self.load_open_positions()
         return self._wallet_id
+
+    def load_open_positions(self) -> None:
+        """Carga en memoria las posiciones abiertas de la BD (sobreviven reinicios)."""
+        for t in self.db.list_open_trades(self.wallet_id):
+            self.positions[t["id"]] = OpenPosition(
+                trade_id=t["id"],
+                pair=t["pair"],
+                side=t["side"],
+                amount=t["amount"],
+                open_price=t["open_price"],
+                stake=t["stake"],
+                stop_loss=t.get("stop_loss") or 0.0,
+                take_profit=t.get("take_profit") or 0.0,
+                best_price=t["open_price"],
+            )
 
     def get_balance(self) -> float:
         w = self.db.get_wallet(self.wallet_id)
@@ -62,7 +78,8 @@ class PaperBroker:
     def get_equity(self) -> float:
         cash = self.get_balance()
         invested = sum(p.stake for p in self.positions.values())
-        return cash + invested
+        db_positions = sum(t["stake"] for t in self.db.list_open_trades(self.wallet_id))
+        return cash + max(invested, db_positions)
 
     def deposit(self, amount: float) -> float:
         if amount <= 0:
@@ -98,7 +115,7 @@ class PaperBroker:
             raise RuntimeError(f"Saldo insuficiente: {self.get_balance():.2f} < {stake:.2f}")
         exec_price = self.apply_fee_and_slippage(price, side)
         amount = stake / exec_price
-        trade_id = self.db.open_trade(self.wallet_id, pair, side, exec_price, amount, stake, fee_pct)
+        trade_id = self.db.open_trade(self.wallet_id, pair, side, exec_price, amount, stake, fee_pct, stop_loss, take_profit)
         self.db.update_balance(self.wallet_id, -stake)
         pos = OpenPosition(
             trade_id=trade_id, pair=pair, side=side, amount=amount,

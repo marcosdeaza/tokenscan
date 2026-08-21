@@ -27,8 +27,7 @@ class Database:
 
     def _init(self) -> None:
         with self._lock, self.conn:
-            self.conn.executescript("""
-                CREATE TABLE IF NOT EXISTS wallets (
+            self.conn.executescript("""                CREATE TABLE IF NOT EXISTS wallets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     label TEXT UNIQUE NOT NULL,
                     currency TEXT NOT NULL DEFAULT 'USDT',
@@ -52,6 +51,8 @@ class Database:
                     open_date TEXT NOT NULL,
                     close_date TEXT,
                     exit_reason TEXT,
+                    stop_loss REAL DEFAULT 0.0,
+                    take_profit REAL DEFAULT 0.0,
                     FOREIGN KEY (wallet_id) REFERENCES wallets(id)
                 );
                 CREATE TABLE IF NOT EXISTS orders (
@@ -85,6 +86,14 @@ class Database:
                     FOREIGN KEY (wallet_id) REFERENCES wallets(id)
                 );
             """)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(trades)").fetchall()}
+        if "stop_loss" not in cols:
+            self.conn.execute("ALTER TABLE trades ADD COLUMN stop_loss REAL DEFAULT 0.0")
+        if "take_profit" not in cols:
+            self.conn.execute("ALTER TABLE trades ADD COLUMN take_profit REAL DEFAULT 0.0")
 
     def close(self) -> None:
         if self._conn:
@@ -124,12 +133,14 @@ class Database:
 
     # --- Trades ---
     def open_trade(self, wallet_id: int, pair: str, side: str, price: float, amount: float,
-                   stake: float, fee: float = 0.001) -> int:
+                   stake: float, fee: float = 0.001, stop_loss: float = 0.0,
+                   take_profit: float = 0.0) -> int:
         with self._lock, self.conn:
             cur = self.conn.execute(
-                "INSERT INTO trades (wallet_id, pair, side, open_price, amount, stake, fee_open, open_date, status) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 'open')",
-                (wallet_id, pair, side, price, amount, stake, fee),
+                "INSERT INTO trades (wallet_id, pair, side, open_price, amount, stake, fee_open, "
+                "stop_loss, take_profit, open_date, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'open')",
+                (wallet_id, pair, side, price, amount, stake, fee, stop_loss, take_profit),
             )
             return cur.lastrowid
 
