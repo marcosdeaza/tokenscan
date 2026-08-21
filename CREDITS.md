@@ -1,38 +1,36 @@
-# CRÉDITOS
+# CREDITS
 
-**TokenScan** es un proyecto original escrito desde cero, pero está inspirado en el
-trabajo y las matemáticas probadas de la comunidad open-source de trading cuantitativo.
-Este kit no copia código de ninguno de estos proyectos: reimplementa fórmulas y
-patrones estándar de mercado de forma original, bajo licencia MIT.
+TokenScan es un proyecto original bajo licencia MIT. Este archivo documenta las
+dependencias del proyecto y la procedencia de los conceptos matemáticos que
+implementa, para que cualquier persona pueda auditar y replicar el trabajo.
 
-## Inspiración y referencia educativa
+## Dependencias
 
-| Proyecto | Autor | Licencia | Qué tomamos de ellos |
-|----------|-------|----------|----------------------|
-| [freqtrade](https://github.com/freqtrade/freqtrade) | freqtrade | GPL-3.0 | Patrón de estrategia (indicators → entry/exit), gestión de riesgo (stop-loss/trailing/ROI), paper-trading y estructura del bot de Telegram |
-| [ccxt](https://github.com/ccxt/ccxt) | ccxt | MIT | Librería usada como dependencia para conectarse a los exchanges |
-| [jesse](https://github.com/jesse-ai/jesse) | jesse-ai | MIT | Patrón de motor de backtest (loop de velas, fills, PnL, métricas) |
-| [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) | virattt | MIT | Patrón de agente LLM: datos → indicadores → resumen JSON → decisión final del LLM |
-| [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) | PTB | LGPL-3.0 | Librería usada como dependencia para el bot de Telegram |
+| Paquete | Licencia | Uso |
+|---------|----------|-----|
+| ccxt | MIT | Acceso unificado a exchanges |
+| pandas / numpy | BSD-3-Clause | Datos y cálculos numéricos |
+| python-telegram-bot | LGPL-3.0 | Interfaz de Telegram |
+| openai | Apache-2.0 | Cliente de modelos LLM compatibles con OpenAI (DeepSeek, OpenRouter, Groq) |
+| pydantic | MIT | Configuración tipada |
+| PyYAML | MIT | Archivos de configuración |
 
-## Dependencias principales (con sus licencias)
+El listado completo de dependencias, con versiones, está en
+[pyproject.toml](pyproject.toml).
 
-- **ccxt** — MIT — acceso unificado a 100+ exchanges
-- **pandas / numpy** — BSD-3-Clause — datos y matemáticas
-- **python-telegram-bot** — LGPL-3.0 — interfaz de Telegram
-- **openai** — Apache-2.0 — cliente del modelo LLM (compatible con DeepSeek y otros)
-- **pydantic** — MIT — configuración tipada
-- **PyYAML** — MIT — archivos de configuración
+## Matemáticas
 
-## Fórmulas matemáticas
-
-Todas las fórmulas implementadas (RSI de Wilder, EMA, ATR, MACD, Bollinger,
+Las fórmulas del proyecto (RSI de Wilder, EMA, ATR, MACD, Bollinger,
 volatilidad anualizada, media-Kelly, drawdown, Sharpe, Sortino, profit factor)
-son fórmulas estándar del análisis técnico y la gestión de riesgo, de dominio
-público, reimplementadas en `tokenscan/quant/` y `tokenscan/utils/pnl.py`.
+son estándar del análisis técnico y la gestión de riesgo. Están reimplementadas
+desde cero en `src/tokenscan/quant/` y `src/tokenscan/utils/pnl.py`, y cada una
+lleva su referencia en [docs/formulas.md](docs/formulas.md).
 
-## Nota sobre el dinero
+## Licencia
 
-Este proyecto es **educativo**. Trading con cripto puede hacerte perder todo tu
-capital. Usa primero el modo paper. Cualquier operación con dinero real es bajo
-tu propia responsabilidad.
+Código original bajo [MIT](LICENSE) © 2026 Marcos de Aza. Las dependencias
+conservan sus propias licencias.
+
+> Trading e inversión en criptoactivos conllevan un riesgo elevado de pérdida
+> de capital. Este proyecto es educativo y no constituye asesoramiento
+> financiero. El rendimiento pasado no garantiza resultados futuros.

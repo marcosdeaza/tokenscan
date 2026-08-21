@@ -1,59 +1,31 @@
-# TokenScan 🔭
+# TokenScan
 
-**Simbiosis entre inteligencia artificial y mercados blockchain.**
+![TokenScan](assets/hero.png)
 
-TokenScan es un *kit* educativo-funcional para construir tu propio agente de
-trading de criptomonedas: un bot de Telegram que crea carteras, recibe fondos y
-deja que una IA navegue por los mercados, la blockchain e Internet, aplicando
-juicio + matemáticas con un único objetivo: **hacer crecer el capital**.
+Agente de trading de criptomonedas con interfaz de Telegram. Paper trading por
+defecto, backtesting, y un modelo de lenguaje configurable (DeepSeek por defecto)
+que decide operaciones sobre indicadores técnicos y datos de mercado — con un
+fallback determinista (RSI) cuando no hay API key configurada.
 
-Escrito 100% desde cero (MIT), basado en los patrones y las matemáticas probadas
-de la comunidad (freqtrade, jesse, ccxt, ai-hedge-fund) — créditos en
-[CREDITS.md](CREDITS.md).
-
-> ⚠️ **Aviso**: proyecto educativo. Cripto puede perder todo tu dinero.
-> Arranca en modo **paper**, y el dinero real queda bajo tu responsabilidad.
+Código original bajo MIT. Las fórmulas y métricas son estándar del análisis
+técnico y la gestión de riesgo (ver [docs/formulas.md](docs/formulas.md)).
 
 ---
 
-## ✨ Qué puedes hacer
+## Índice
 
-| Comando de Telegram | Descripción |
-|---------------------|-------------|
-| `/wallet` | Ver tu cartera virtual |
-| `/deposit 20` | Ingresar fondos (paper) |
-| `/withdraw 10` | Retirar (paper) |
-| `/balance` | Saldo, equity y PnL |
-| `/positions` | Posiciones abiertas |
-| `/trade BTC/USDT buy 20` | Operar manualmente |
-| `/agent_start` / `/agent_stop` | Arrancar/parar la IA |
-| `/status` | Estado del sistema |
-
-CLI: `python -m tokenscan run | telegram | backtest | wallet`
+- [Quick start](#quick-start)
+- [Cómo funciona](#cómo-funciona)
+- [Arquitectura](#arquitectura)
+- [Configurar la IA](#configurar-la-ia)
+- [Uso con Telegram](#uso-con-telegram)
+- [Deploy en VPS](#deploy-en-vps)
+- [Documentación](#documentación)
+- [Licencia](#licencia)
 
 ---
 
-## 🧠 Arquitectura
-
-```
-tokenscan/
-├── tokenscan/
-│   ├── quant/      → indicadores (RSI/EMA/ATR/MACD/Bollinger) + riesgo (Kelly, SL/TP, trailing)
-│   ├── execution/  → broker paper (virtual) + cliente ccxt (modo real)
-│   ├── data/       → feeds de mercado, noticias, on-chain
-│   ├── agent/      → loop del agente: LLM (DeepSeek por defecto) + fallback RSI
-│   ├── storage/    → SQLite (wallets, trades, órdenes, memoria, PnL)
-│   ├── telegram/   → bot de Telegram (python-telegram-bot)
-│   └── backtest/   → motor de backtesting con métricas (Sharpe, Sortino, DD…)
-├── config.yaml     → configuración (copia config.yaml.example)
-├── .env            → secretos (copia .env.example)
-├── Dockerfile      → deploy en VPS con un comando
-└── results/        → donde publicar los resultados de tus tests
-```
-
----
-
-## 🚀 Instalación local (5 min)
+## Quick start
 
 ```bash
 git clone https://github.com/marcosdeaza/tokenscan.git
@@ -61,21 +33,55 @@ cd tokenscan
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-cp .env.example .env        # → rellena tu token de Telegram
+cp .env.example .env
 cp config.yaml.example config.yaml
 
-python -m tokenscan wallet   # comprueba que arranca
-python -m tokenscan run      # bucle del agente en paper trading
-python -m tokenscan telegram # bot de Telegram
-python -m tokenscan backtest # backtest de la estrategia
+python -m tokenscan wallet    # verificar que arranca
+python -m tokenscan backtest  # backtest de la estrategia configurada
+python -m tokenscan run       # loop del agente en paper trading
+```
+
+CLI disponible: `run`, `telegram`, `backtest`, `wallet`.
+
+---
+
+## Cómo funciona
+
+Cada ciclo (5 minutos por defecto), el agente:
+
+1. Recopila precios, velas e indicadores (RSI, EMA, ATR, MACD, Bollinger).
+2. Decide con el LLM si comprar, vender o esperar. Sin LLM, usa la estrategia RSI.
+3. Ejecuta en el broker virtual (o real) con gestión de riesgo: stop-loss,
+   take-profit y trailing stop.
+4. Guarda la decisión y el resultado en SQLite.
+
+Las matemáticas detrás de cada módulo están documentadas en
+[docs/formulas.md](docs/formulas.md).
+
+---
+
+## Arquitectura
+
+![Arquitectura](assets/architecture.png)
+
+```
+src/tokenscan/
+├── quant/      → indicadores + gestión de riesgo (Kelly, stop-loss, trailing)
+├── execution/  → broker paper (virtual) + cliente ccxt (modo real)
+├── data/       → feeds de mercado, noticias, on-chain
+├── agent/      → loop del agente: LLM configurable + fallback determinista
+├── storage/    → SQLite (wallets, trades, órdenes, memoria, PnL)
+├── telegram/   → bot de Telegram
+├── backtest/   → motor de backtesting con métricas (Sharpe, Sortino, DD…)
+└── config.py   → configuración tipada (pydantic)
 ```
 
 ---
 
-## 🤖 Configurar la IA (2 min)
+## Configurar la IA
 
-TokenScan usa **DeepSeek** por defecto (barato y rápido, API compatible con
-OpenAI). Solo tienes que poner tu clave en `.env`:
+TokenScan usa **DeepSeek** por defecto (API compatible con OpenAI, económica).
+Configura en `.env`:
 
 ```ini
 LLM_API_KEY=tu-clave
@@ -83,60 +89,68 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL=deepseek-chat
 ```
 
-Sin clave, el agente cae automáticamente a una **estrategia determinista (RSI)**.
-¿Quieres usar otro proveedor? Cambia `LLM_BASE_URL` y `LLM_MODEL`: cualquier API
-compatible con OpenAI (OpenRouter, Groq, etc.) funciona sin tocar código.
+Cualquier proveedor con API compatible con OpenAI funciona: cambia
+`LLM_BASE_URL` y `LLM_MODEL` (OpenRouter, Groq, etc.). Sin API key, el agente usa
+la estrategia determinista RSI.
 
 ---
 
-## 🧪 Paper trading primero
+## Uso con Telegram
 
-El modo por defecto es **paper**: dinero virtual, riesgo cero, mismas matemáticas.
-Cuando te sientas cómodo, prueba con **15–20 €** reales:
+![Telegram](assets/telegram-demo.png)
 
-1. Cambia `mode: live` en `config.yaml`.
-2. Rellena `EXCHANGE_NAME`, `EXCHANGE_API_KEY`, `EXCHANGE_API_SECRET` en `.env`
-   (crea la key SOLO con permisos de trading spot, **sin retiros**).
-3. `python -m tokenscan run`.
+| Comando | Descripción |
+|---------|-------------|
+| `/wallet` | Cartera virtual |
+| `/deposit 20` | Ingresar fondos (paper) |
+| `/withdraw 10` | Retirar (paper) |
+| `/balance` | Saldo, equity y PnL |
+| `/positions` | Posiciones abiertas |
+| `/trade BTC/USDT buy 20` | Operación manual |
+| `/agent_start` / `/agent_stop` | Arrancar/parar el agente |
+| `/status` | Estado del sistema |
 
-Registra tus resultados en `results/` y súbelos al repo: **la transparencia es
-la mejor marca personal.** 📈
-
----
-
-## 🖥️ Deploy en VPS (Docker)
+Para arrancar el bot:
 
 ```bash
-# en tu máquina local
-./scripts/deploy.sh usuario@ip-vps
-
-# o manual
-docker compose up -d --build
-docker compose logs -f tokenscan
+python -m tokenscan telegram
 ```
 
-> En el VPS: `curl -fsSL https://get.docker.com | sh` si no tienes Docker.
+Requiere `TELEGRAM_BOT_TOKEN` (con [@BotFather](https://t.me/botfather)) y tu
+`TELEGRAM_CHAT_ID` en `.env`.
 
 ---
 
-## 📚 Documentación educativa
+## Deploy en VPS
 
-- [docs/guide.md](docs/guide.md) — La guía completa: cómo funciona cada pieza y por qué
-- [docs/formulas.md](docs/formulas.md) — **Cada fórmula** del proyecto, explicada y con sus referencias
-- `tokenscan/quant/indicators.py` — las fórmulas, comentadas
-- `tokenscan/quant/risk.py` — gestión de riesgo explicada
+```bash
+./scripts/deploy.sh usuario@ip-vps
+```
+
+El script sincroniza el código, crea `config.yaml` si no existe y levanta el
+contenedor con Docker Compose. Manualmente:
+
+```bash
+docker compose up -d --build
+docker compose logs --tail 50
+```
 
 ---
 
-## 🔐 Seguridad
+## Documentación
 
-- **Nunca** subas `.env` ni claves a GitHub (`.gitignore` lo cubre).
-- API keys de exchange: solo trading spot, sin permisos de retiro.
-- La clave privada de wallet on-chain se usa solo en tu propio VPS.
+- [docs/guide.md](docs/guide.md) — cómo funciona cada módulo, en detalle
+- [docs/formulas.md](docs/formulas.md) — fórmulas, explicaciones y referencias
+
+## Licencia
+
+[MIT](LICENSE) © 2026 Marcos de Aza. Dependencias y créditos en
+[CREDITS.md](CREDITS.md).
 
 ---
 
-## 🧾 Licencia
-
-[MIT](LICENSE) © 2026 [Marcos de Aza](https://github.com/marcosdeaza).
-Créditos e inspiración en [CREDITS.md](CREDITS.md).
+> **Aviso de riesgo**: trading e inversión en criptoactivos conllevan un riesgo
+> elevado de pérdida de capital. TokenScan es una herramienta educativa: no
+> constituye asesoramiento financiero, y el rendimiento pasado no garantiza
+> resultados futuros. Empieza en modo paper y asume la responsabilidad de tus
+> operaciones con dinero real.
