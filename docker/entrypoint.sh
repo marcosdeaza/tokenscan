@@ -1,13 +1,17 @@
 #!/bin/sh
 # Entrypoint para el contenedor de TokenScan.
-# Copia config.yaml.example a config.yaml si no existe.
+# El volumen host: ~/tokenscan/config/ → /app/config/
+# Si no existe config.yaml, se copia el ejemplo.
 
 set -e
 
-if [ ! -f /app/config.yaml ]; then
-    echo "config.yaml no existe, copiando ejemplo..."
-    cp /app/config.yaml.example /app/config.yaml
+CONFIG_DIR=/app/config
+CONFIG_FILE=$CONFIG_DIR/config.yaml
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "config.yaml no existe en $CONFIG_DIR, copiando ejemplo..."
+    cp /app/config.yaml.example "$CONFIG_FILE"
 fi
 
-echo "Arrancando TokenScan (modo: $(grep '^mode:' /app/config.yaml | head -1 || echo paper))"
-exec python -m tokenscan run
+echo "Arrancando TokenScan (modo: $(grep '^mode:' "$CONFIG_FILE" | head -1 || echo paper))"
+exec python -m tokenscan run --config "$CONFIG_FILE"

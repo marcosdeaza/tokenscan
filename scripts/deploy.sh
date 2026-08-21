@@ -22,10 +22,13 @@ rsync -av --exclude '.venv' --exclude '__pycache__' --exclude 'data' --exclude '
     ./ "$HOST:~/tokenscan/"
 
 echo "==> Configurando .env en el VPS (si no existe)..."
-ssh "$HOST" "cd ~/tokenscan && [ -f .env ] || cp .env.example .env && echo 'Edita ~/tokenscan/.env con tus claves.'"
+ssh "$HOST" "cd ~/tokenscan && ([ -f .env ] || cp .env.example .env) && echo 'Edita ~/tokenscan/.env con tus claves.'"
+
+echo "==> Creando config.yaml en el VPS (si no existe)..."
+ssh "$HOST" "cd ~/tokenscan && mkdir -p config && ([ -f config/config.yaml ] || cp config.yaml.example config/config.yaml) && echo 'config.yaml listo.'"
 
 echo "==> Levantando contenedor..."
 ssh "$HOST" "cd ~/tokenscan && docker compose up -d --build"
 
-echo "==> Listo. Logs:"
-ssh "$HOST" "cd ~/tokenscan && docker compose logs -f --tail 30"
+echo "==> Listo. Logs (tail 30):"
+ssh "$HOST" "cd ~/tokenscan && docker compose logs --tail 30"

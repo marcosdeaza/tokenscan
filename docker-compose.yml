@@ -10,5 +10,5 @@ services:
     volumes:
       - ./data:/app/data
       - ./results:/app/results
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config:/app/config
     command: ["/app/entrypoint.sh"]

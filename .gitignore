@@ -13,7 +13,8 @@ env/
 !*.env.example
 
 # Datos generados
-data/
+/data/
+!src/tokenscan/data/
 *.db
 *.sqlite
 *.sqlite3
