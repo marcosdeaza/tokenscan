@@ -65,6 +65,16 @@ class BacktestConfig(BaseModel):
     output_dir: str = "results/backtest"
 
 
+class JupiterConfig(BaseModel):
+    enabled: bool = True
+    slippage_bps: int = 100
+    min_trade_usd: float = 5.0
+    max_trade_usd: float = 100.0
+    min_sol_balance: float = 0.01
+    priority_fee_lamports: int = 10000
+    rpc_confirm_timeout_s: int = 30
+
+
 class Settings(BaseModel):
     mode: str = "paper"
     timeframe: str = "5m"
@@ -76,6 +86,7 @@ class Settings(BaseModel):
     agent: AgentConfig = Field(default_factory=AgentConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     backtest: BacktestConfig = Field(default_factory=BacktestConfig)
+    jupiter: JupiterConfig = Field(default_factory=JupiterConfig)
     data_dir: str = "data"
 
     # Secretos (del entorno, nunca del YAML)

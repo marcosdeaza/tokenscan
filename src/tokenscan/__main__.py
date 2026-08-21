@@ -28,7 +28,11 @@ log = setup_logger("tokenscan.main")
 
 def build_context(settings: Settings, with_exchange: bool | None = None):
     db = Database(settings.data_dir.rstrip("/") + "/tokenscan.db")
-    broker = PaperBroker(settings, db)
+    if settings.mode == "live":
+        from .execution.live import LiveBroker
+        broker = LiveBroker(settings, db)
+    else:
+        broker = PaperBroker(settings, db)
     broker.ensure_wallet()
     want_exchange = with_exchange if with_exchange is not None else False
     exchange = ExchangeClient(settings) if want_exchange else None

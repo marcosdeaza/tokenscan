@@ -56,6 +56,16 @@ telegram:
   notify_trades: true         # avisa de cada operación
   notify_cycles: false        # avisa resumen en cada ciclo (ruidoso)
 
+# --- Ejecución on-chain (Jupiter / Solana) — solo aplica en mode=live ---
+jupiter:
+  enabled: true               # permite swaps reales on-chain
+  slippage_bps: 100           # slippage máximo permitido (100 = 1%)
+  min_trade_usd: 5.0          # operación mínima en USDC (evita dust)
+  max_trade_usd: 100.0        # tope por operación (protege el capital real)
+  min_sol_balance: 0.01       # SOL mínimo reservado para gas
+  priority_fee_lamports: 10000  # comisión de prioridad para la tx
+  rpc_confirm_timeout_s: 30   # espera máxima para confirmar la tx on-chain
+
 # --- Backtest ---
 backtest:
   days: 90                    # cuánto histórico usar

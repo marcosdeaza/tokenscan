@@ -17,6 +17,7 @@ from ..execution.paper import PaperBroker
 from ..quant.strategies import get_strategy
 from ..storage.db import Database
 from ..utils.logger import setup_logger
+from ..utils.notifier import TelegramNotifier
 
 log = setup_logger("tokenscan.agent")
 
@@ -46,6 +47,7 @@ class LLMAgent:
         )
         self._client = None
         self._cycle = 0
+        self.notifier = TelegramNotifier(settings)
         self._fallback_strategy = get_strategy(
             settings.strategy.name,
             rsi_period=settings.strategy.rsi_period,
@@ -67,6 +69,12 @@ class LLMAgent:
     def available(self) -> bool:
         return self.client is not None
 
+    def _supported_pairs(self) -> list[str]:
+        if self.s.mode == "live":
+            from ..execution.jupiter import LIVE_PAIRS
+            return [p for p in self.s.trading_pairs if p in LIVE_PAIRS]
+        return list(self.s.trading_pairs)
+
     def run_cycle(self) -> list[Decision]:
         """Ciclo principal: recopila datos, evalúa SL/TP, decide, ejecuta, memoriza."""
         self._cycle += 1
@@ -76,6 +84,12 @@ class LLMAgent:
         exits = self.broker.check_exits(prices)
         for e in exits:
             log.info("[AGENT] Salida automática: %s — pnl=%.4f", e.get("exit_reason", "?"), e.get("pnl_abs", 0))
+            if self.s.mode != "live":
+                self.notifier.trade_closed(
+                    e.get("pair", "?"), e.get("exit_reason", "?"),
+                    e.get("pnl_abs", 0.0), e.get("pnl_ratio", 0.0),
+                    e.get("signature"),
+                )
 
         if self.available:
             decisions = self._llm_decide()
@@ -84,7 +98,10 @@ class LLMAgent:
             decisions = self._deterministic_decide()
 
         for d in decisions:
-            self._execute_decision(d)
+            try:
+                self._execute_decision(d)
+            except Exception as e:  # noqa: BLE001
+                log.warning("[AGENT] Error ejecutando %s %s: %s", d.action, d.pair, e)
 
         self._log_cycle(decisions)
         return decisions
@@ -222,9 +239,10 @@ Acciones válidas: buy, sell, hold.
             clean = clean.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         data = json.loads(clean)
         decisions: list[Decision] = []
+        supported = set(self._supported_pairs())
         for d in data.get("decisions", data if isinstance(data, list) else []):
             pair = d["pair"]
-            if pair not in prices:
+            if pair not in prices or pair not in supported:
                 continue
             qty = float(d.get("quantity", 0))
             conf = float(d.get("confidence", 0))
@@ -249,7 +267,7 @@ Acciones válidas: buy, sell, hold.
         from ..quant.regime import detect_regime
         from ..quant.scorer import composite_score
 
-        for pair in self.s.trading_pairs:
+        for pair in self._supported_pairs():
             if pair in open_pairs:
                 continue
             try:
@@ -321,6 +339,11 @@ Acciones válidas: buy, sell, hold.
             pos = self.broker.open_trade(d.pair, "long", stake, price, sl, tp)
             log.info("[AGENT] BUY %s qty=%.4f stake=%.2f conf=%.0f — %s",
                      d.pair, d.quantity, stake, d.confidence, d.reasoning[:60])
+            if self.s.mode != "live":
+                self.notifier.trade_opened(
+                    d.pair, "long", pos.amount, pos.open_price, stake,
+                    d.confidence, d.reasoning, pos.signature,
+                )
         elif d.action == "sell":
             for pos in self.broker.positions.values():
                 if pos.pair == d.pair:

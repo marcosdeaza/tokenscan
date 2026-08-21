@@ -25,6 +25,7 @@ class OpenPosition:
     take_profit: float
     best_price: float
     opened_at: datetime = field(default_factory=datetime.utcnow)
+    signature: str = ""
 
 
 class PaperBroker:
@@ -37,7 +38,8 @@ class PaperBroker:
         self._wallet_id: int | None = None
         self._last_prices: dict[str, float] = {}
         self.exchange: ExchangeClient | None = None
-        if settings.mode == "live":
+        # Solo creamos el cliente CEX si hay API keys (paper no lo necesita).
+        if settings.mode == "live" and settings.exchange_api_key:
             self.exchange = ExchangeClient(settings)
 
     @property
@@ -149,10 +151,10 @@ class PaperBroker:
             if pos.side == "long":
                 pos.best_price = max(pos.best_price, price)
                 if price <= pos.stop_loss:
-                    exits.append(self.close_trade(trade_id, pos.stop_loss, "stop_loss"))
+                    exits.append(self._make_exit(trade_id, pos, pos.stop_loss, "stop_loss"))
                     continue
                 if price >= pos.take_profit:
-                    exits.append(self.close_trade(trade_id, pos.take_profit, "take_profit"))
+                    exits.append(self._make_exit(trade_id, pos, pos.take_profit, "take_profit"))
                     continue
                 if pos.best_price > self.s.risk.trailing_activate_pct * pos.open_price + pos.open_price:
                     new_stop = pos.best_price * (1 - self.s.risk.trailing_stop_pct)
@@ -163,10 +165,10 @@ class PaperBroker:
             else:
                 pos.best_price = min(pos.best_price, price)
                 if price >= pos.stop_loss:
-                    exits.append(self.close_trade(trade_id, pos.stop_loss, "stop_loss"))
+                    exits.append(self._make_exit(trade_id, pos, pos.stop_loss, "stop_loss"))
                     continue
                 if price <= pos.take_profit:
-                    exits.append(self.close_trade(trade_id, pos.take_profit, "take_profit"))
+                    exits.append(self._make_exit(trade_id, pos, pos.take_profit, "take_profit"))
                     continue
                 if pos.best_price < pos.open_price * (1 - self.s.risk.trailing_activate_pct):
                     new_stop = pos.best_price * (1 + self.s.risk.trailing_stop_pct)
@@ -174,6 +176,12 @@ class PaperBroker:
                         pos.stop_loss = new_stop
                         self._update_stop(trade_id, new_stop)
         return exits
+
+    def _make_exit(self, trade_id: int, pos: OpenPosition, price: float, reason: str) -> dict:
+        result = self.close_trade(trade_id, price, reason)
+        result["pair"] = pos.pair
+        result["exit_reason"] = reason
+        return result
 
     def _update_stop(self, trade_id: int, stop: float) -> None:
         # La BD guarda el SL; por simplicidad actualizamos en memoria y anotamos en la trade.
