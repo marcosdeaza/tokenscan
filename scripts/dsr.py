@@ -23,6 +23,40 @@ from pathlib import Path
 import numpy as np
 
 
+def _norm_cdf(x: float) -> float:
+    """CDF de la normal estándar usando math.erf (sin scipy)."""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _norm_ppf(p: float) -> float:
+    """Inversa de la CDF normal (aproximación de Acklam, error < 1e-9)."""
+    a = [-3.969683028665376e01, 2.209460984245205e02, -2.759285104469687e02,
+         1.383577518672690e02, -3.066479806614716e01, 2.506628277459239e00]
+    b = [-5.447609879822406e01, 1.615858368580409e02, -1.556989798598866e02,
+         6.680131188771972e01, -1.328068155288572e01]
+    c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e00,
+         -2.549732539343734e00, 4.374664141464968e00, 2.938163982698783e00]
+    d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e00,
+         3.754408661907416e00]
+    plow = 0.02425
+    if p <= 0.0:
+        return -float("inf")
+    if p >= 1.0:
+        return float("inf")
+    if p < plow:
+        q = math.sqrt(-2.0 * math.log(p))
+        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / \
+               ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+    if p <= 1.0 - plow:
+        q = p - 0.5
+        r = q * q
+        return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / \
+               (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
+    q = math.sqrt(-2.0 * math.log(1.0 - p))
+    return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / \
+           ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+
+
 def _expected_max_sharpe(n_trials: int, variance_sharpe: float) -> float:
     """E[max SR] = sqrt(var_SR) * ((1-gamma)*Z^{-1}(1-1/N) + gamma*Z^{-1}(1-1/(N*e))).
 
@@ -32,10 +66,8 @@ def _expected_max_sharpe(n_trials: int, variance_sharpe: float) -> float:
     if n_trials <= 1:
         return 0.0
     gamma = 0.5772156649
-    from scipy.stats import norm
-
-    z1 = norm.ppf(1 - 1.0 / n_trials)
-    z2 = norm.ppf(1 - 1.0 / (n_trials * math.e))
+    z1 = _norm_ppf(1 - 1.0 / n_trials)
+    z2 = _norm_ppf(1 - 1.0 / (n_trials * math.e))
     emc = (1 - gamma) * z1 + gamma * z2
     return math.sqrt(variance_sharpe) * emc
 
@@ -68,10 +100,8 @@ def dsr(sharpe: float, n_trials: int, n_observations: int, returns: list[float] 
     if variance_sr <= 0:
         return 1.0 if sharpe > sr_expected_max else 0.5
 
-    from scipy.stats import norm
-
     z = (sharpe - sr_expected_max) / math.sqrt(variance_sr)
-    return float(norm.cdf(z))
+    return float(_norm_cdf(z))
 
 
 def main() -> None:
