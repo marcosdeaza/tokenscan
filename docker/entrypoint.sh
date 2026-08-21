@@ -1,7 +1,7 @@
 #!/bin/sh
 # Entrypoint para el contenedor de TokenScan.
-# El volumen host: ~/tokenscan/config/ → /app/config/
-# Si no existe config.yaml, se copia el ejemplo.
+# Ejecuta el loop del agente y el bot de Telegram. Si el bot no está
+# configurado (sin TELEGRAM_BOT_TOKEN) el agente sigue corriendo.
 
 set -e
 
@@ -13,6 +13,16 @@ if [ ! -f "$CONFIG_FILE" ]; then
     cp /app/config.yaml.example "$CONFIG_FILE"
 fi
 
-echo "Arrancando TokenScan (modo: $(grep '^mode:' "$CONFIG_FILE" | head -1 || echo paper))"
+MODE=$(grep '^mode:' "$CONFIG_FILE" | head -1 | awk '{print $2}' || echo paper)
+echo "Arrancando TokenScan (modo: $MODE)"
+
 python -m tokenscan run --config "$CONFIG_FILE" &
-exec python -m tokenscan telegram --config "$CONFIG_FILE"
+
+if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ "$TELEGRAM_BOT_TOKEN" != "123456789:TU-TOKEN-AQUI" ]; then
+    echo "Bot de Telegram habilitado."
+    python -m tokenscan telegram --config "$CONFIG_FILE" &
+else
+    echo "TELEGRAM_BOT_TOKEN no configurado: el bot de Telegram no arrancará (el agente sigue activo)."
+fi
+
+wait
