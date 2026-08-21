@@ -14,4 +14,5 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 echo "Arrancando TokenScan (modo: $(grep '^mode:' "$CONFIG_FILE" | head -1 || echo paper))"
-exec python -m tokenscan run --config "$CONFIG_FILE"
+python -m tokenscan run --config "$CONFIG_FILE" &
+exec python -m tokenscan telegram --config "$CONFIG_FILE"
