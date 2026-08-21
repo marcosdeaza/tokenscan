@@ -50,8 +50,8 @@ def cmd_run(settings: Settings) -> None:
 
 
 def cmd_telegram(settings: Settings) -> None:
-    if not settings.telegram_bot_token:
-        log.error("TELEGRAM_BOT_TOKEN no configurado. Mira .env.example")
+    if not settings.telegram_bot_token or settings.telegram_bot_token.startswith("123456789"):
+        log.error("TELEGRAM_BOT_TOKEN no configurado. Copia .env.example a .env y pon el token de @BotFather")
         sys.exit(1)
     db, broker, _market, agent = build_context(settings, with_exchange=True)
     from .telegram.bot import run_telegram

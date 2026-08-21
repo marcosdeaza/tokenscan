@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _load_env() -> None:
     load_dotenv(ROOT / ".env")
-    load_dotenv(ROOT / ".env.example")
 
 
 class RiskConfig(BaseModel):
