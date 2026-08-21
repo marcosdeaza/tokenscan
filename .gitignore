@@ -6,6 +6,8 @@ __pycache__/
 venv/
 env/
 .ruff_cache/
+build/
+dist/
 
 # Entornos y secretos — NUNCA subir credenciales
 .env
