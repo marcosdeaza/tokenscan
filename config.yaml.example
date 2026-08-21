@@ -23,21 +23,21 @@ strategy:
   ema_slow: 26
   ema_macro: 150          # EMA diaria del gate macro (solo long si precio > EMA)
   atr_sl_multiplier: 2.5
-  atr_tp_multiplier: 3.5
+  atr_tp_multiplier: 4.0   # TP amplio: deja correr el crecimiento, no corta pronto
 
 # --- Gestión de riesgo ---
 risk:
   max_position_pct: 0.90      # tier micro: usa ~90% del capital por operación
   stop_loss_pct: 0.05         # stop-loss 5% (fallback si no hay ATR)
   take_profit_pct: 0.10       # take-profit 10% (fallback si no hay ATR)
-  trailing_stop_pct: 0.03     # trailing stop 3% tras alcanzar +4%
+  trailing_stop_pct: 0.0      # 0 = sin trailing: el hold lo decide el gate macro
   trailing_activate_pct: 0.04
   max_open_trades: 3
   max_daily_loss_pct: 0.10    # frenar en seco si pierdes 10% en el día
   cooldown_minutes: 15        # pausa tras un stop-loss
   risk_per_trade_pct: 0.01    # riesgo 1% del capital por operación (regla Turtle)
   atr_sl_multiplier: 2.5      # stop-loss a 2.5 ATR del precio de entrada
-  atr_tp_multiplier: 3.5      # take-profit a 3.5 ATR del precio de entrada
+  atr_tp_multiplier: 4.0      # take-profit amplio: deja correr los ganadores
   vol_target_annual: 0.15     # objetivo de volatilidad anual para vol targeting
   vol_max_leverage: 1.0       # palanca máxima permitida (1.0 = sin apalancar)
 

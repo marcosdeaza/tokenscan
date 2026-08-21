@@ -77,7 +77,8 @@ def run_case(settings: Settings, capital: float, market: CachedMarket, days: int
     s.timeframe = "4h"
     s.jupiter.tier = "micro"
     s.risk.atr_sl_multiplier = 2.5
-    s.risk.atr_tp_multiplier = 3.5
+    s.risk.atr_tp_multiplier = 4.0
+    s.risk.trailing_stop_pct = 0.0
     bt = Backtester(s, market)  # type: ignore[arg-type]
     strategy = get_strategy("macro_gate", fast=12, slow=26, ema_macro=150)
     strategy.macro_daily = market.macro_daily()

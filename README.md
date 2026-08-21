@@ -66,14 +66,23 @@ Backtest de 90 días con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%)
 
 | Capital | Resultado | Trades | Win rate | PF | DD máx |
 |---------|-----------|--------|----------|----|--------|
-| 5€  | +28.4% | 10 | 100% | ∞ | 1.2% |
-| 50€ | +28.4% | 10 | 100% | ∞ | 1.2% |
-| 500€| +28.4% | 10 | 100% | ∞ | 1.2% |
+| 5€  | +30.3% | 8 | 100% | ∞ | 1.2% |
+| 50€ | +30.3% | 8 | 100% | ∞ | 1.2% |
+| 500€| +30.3% | 8 | 100% | ∞ | 1.2% |
+
+El gate deja **correr los ganadores**: el TP amplio (4 ATR) y sin trailing hacen
+que el bot mantenga el hold mientras la tendencia vive y cobre al tocar techo o
+cuando el precio cruza su EMA diaria. Los 8 trades de los últimos 90 días
+maduraron todos en positivo (+4.4% a +7.4%).
 
 Los periodos por encima de la EMA diaria (tendencia alcista) concentran las
 ganancias; los bajistas quedan fuera del mercado. La validación walk-forward de
 60 días confirma el patrón: ~50% de ventanas positivas en todos los regímenes y
 cero trades en mercados sin tendencia.
+
+> La estrategia **no corta a los ganadores**: usa un take-profit amplio (4 ATR)
+> y sin trailing stop, de modo que mantiene la posición mientras el mercado
+> sigue subiendo y solo cobra cuando la tendencia se agota.
 
 Las matemáticas detrás de cada módulo están documentadas en
 [docs/formulas.md](docs/formulas.md).
