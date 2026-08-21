@@ -89,6 +89,21 @@ class TokenScanBot:
     @authorized_only
     async def cmd_wallet(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         w = self.db.get_wallet(self.broker.wallet_id)
+        if self.s.mode == "live":
+            from ..execution.live import LiveBroker
+            if isinstance(self.broker, LiveBroker):
+                usdc = self.broker.get_balance()
+                sol = self.broker.jupiter.get_sol_balance()
+                await update.message.reply_text(
+                    f"💼 Wallet <b>{w['label']}</b> (on-chain)\n"
+                    f"  • Dirección: <code>{self.broker.jupiter.address}</code>\n"
+                    f"  • USDC: {usdc:.4f}\n"
+                    f"  • SOL: {sol:.6f}\n"
+                    f"  • Equity: {self.broker.get_equity():.2f} USDC\n"
+                    f"  • Posiciones: {len(self.broker.positions)}",
+                    parse_mode=ParseMode.HTML,
+                )
+                return
         await update.message.reply_text(
             f"💼 Wallet <b>{w['label']}</b>\n"
             f"  • Moneda: {w['currency']}\n"
@@ -119,6 +134,20 @@ class TokenScanBot:
     @authorized_only
     async def cmd_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         snap = self.broker.to_snapshot()
+        if self.s.mode == "live":
+            from ..execution.live import LiveBroker
+            if isinstance(self.broker, LiveBroker):
+                sol = self.broker.jupiter.get_sol_balance()
+                await update.message.reply_text(
+                    f"💰 <b>Balance (on-chain)</b>\n"
+                    f"  • USDC: {snap['balance']:.4f}\n"
+                    f"  • SOL: {sol:.6f} (gas)\n"
+                    f"  • Equity: {snap['equity']:.2f} USDC\n"
+                    f"  • Posiciones abiertas: {snap['positions']}\n"
+                    f"  • PnL total: {snap['stats']['total_pnl']:.4f} USDC",
+                    parse_mode=ParseMode.HTML,
+                )
+                return
         await update.message.reply_text(
             f"💰 <b>Balance</b>\n"
             f"  • Efectivo: {snap['balance']:.2f} USDT\n"
