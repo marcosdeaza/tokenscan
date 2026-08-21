@@ -6,7 +6,7 @@ Permite ejecutar swaps reales SOL <-> USDC usando la wallet del .env:
 - La envía al RPC y confirma el estado on-chain
 
 Referencias:
-- Jupiter API v6: https://station.jup.ag/docs/apis/swap-api
+- Jupiter Swap API: https://station.jup.ag/docs/apis/swap-api
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 SOL_DECIMALS = 9
 USDC_DECIMALS = 6
 
-QUOTE_URL = "https://quote-api.jup.ag/v6/quote"
-SWAP_URL = "https://quote-api.jup.ag/v6/swap"
+QUOTE_URL = "https://lite-api.jup.ag/swap/v1/quote"
+SWAP_URL = "https://lite-api.jup.ag/swap/v1/swap"
 
 # Pares soportados en modo live on-chain: base siempre SOL en Solana.
 LIVE_PAIRS = {"SOL/USDC": (SOL_MINT, USDC_MINT), "SOL/USDT": (SOL_MINT, USDC_MINT)}
