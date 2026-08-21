@@ -185,7 +185,9 @@ class Database:
         ).fetchall()
         if not rows:
             return {"trades": 0, "profit": 0, "loss": 0, "win_rate": 0, "total_pnl": 0}
-        pnls = [r["pnl_abs"] for r in rows]
+        pnls = [r["pnl_abs"] for r in rows if r["pnl_abs"] is not None]
+        if not pnls:
+            return {"trades": 0, "profit": 0, "loss": 0, "win_rate": 0, "total_pnl": 0}
         wins = [p for p in pnls if p > 0]
         losses = [p for p in pnls if p < 0]
         return {
