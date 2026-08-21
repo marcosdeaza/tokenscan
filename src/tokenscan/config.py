@@ -101,7 +101,6 @@ class Settings(BaseModel):
         if cfg_path.exists():
             data = yaml.safe_load(cfg_path.read_text()) or {}
 
-        raw = cls._flat(data)
         secrets = {
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
             "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
@@ -117,18 +116,7 @@ class Settings(BaseModel):
             "solana_rpc_url": os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
             "wallet_private_key": os.getenv("WALLET_PRIVATE_KEY", ""),
         }
-        return cls(**raw, **secrets)
-
-    @staticmethod
-    def _flat(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        for key, value in data.items():
-            full = f"{prefix}_{key}" if prefix else key
-            if isinstance(value, dict):
-                out.update(Settings._flat(value, full))
-            else:
-                out[full] = value
-        return out
+        return cls(**data, **secrets)
 
     @property
     def agent_available(self) -> bool:
