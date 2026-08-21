@@ -310,6 +310,20 @@ class TokenScanBot:
         except Exception as e:  # noqa: BLE001
             await update.message.reply_text(f"❌ Error: {e}")
 
+    @authorized_only
+    async def cmd_convert(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        from ..execution.live import LiveBroker
+        if not isinstance(self.broker, LiveBroker):
+            await update.message.reply_text("❌ /convert solo disponible en modo live.")
+            return
+        usdc = self.broker._auto_fund()
+        if usdc > 0:
+            await update.message.reply_text(
+                f"✅ Convertido SOL → {usdc:.2f} USDC. Usa /wallet para ver saldo."
+            )
+        else:
+            await update.message.reply_text("ℹ️ No hay SOL sobrante para convertir.")
+
 
 def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: LLMAgent) -> Application:
     bot = TokenScanBot(settings, db, broker, agent)
@@ -327,6 +341,7 @@ def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: L
         ("agent_stop", bot.cmd_agent_stop),
         ("wallet_onchain", bot.cmd_wallet_onchain),
         ("create_wallet", bot.cmd_create_wallet),
+        ("convert", bot.cmd_convert),
         ("status", bot.cmd_status),
     ]
     for name, handler in handlers:

@@ -49,7 +49,34 @@ class LiveBroker(PaperBroker):
         else:
             self._wallet_id = w["id"]
         self.load_open_positions()
+        self._auto_fund()
         return self._wallet_id
+
+    def _auto_fund(self) -> float:
+        """Convierte SOL sobrante a USDC automáticamente (deja reserva de gas).
+
+        Si la wallet tiene SOL por encima de la reserva de gas, lo convierte
+        a USDC para que el agente tenga capital operativo sin intervención.
+        Devuelve el USDC obtenido (0 si no hubo nada que convertir).
+        """
+        keep_sol = max(self.s.jupiter.min_sol_balance * 4, 0.005)
+        sol = self.jupiter.get_sol_balance()
+        excess = sol - keep_sol
+        if excess <= 0.0001:
+            return 0.0
+        log.info("[LIVE] Auto-fund: convirtiendo %.4f SOL -> USDC (reserva gas %.4f)", excess, keep_sol)
+        try:
+            result = self.jupiter.swap(SOL_MINT, USDC_MINT, excess)
+        except Exception as e:  # noqa: BLE001
+            log.warning("[LIVE] Auto-fund falló: %s", e)
+            return 0.0
+        usdc = result["out_amount"]
+        self.notifier.send(
+            f"🏦 <b>Auto-fund</b>\n"
+            f"  • Convirtió <b>{excess:.4f} SOL</b> → <b>{usdc:.2f} USDC</b>\n"
+            f"  • TX: <a href='https://solscan.io/tx/{result['signature']}'>ver en Solscan</a>"
+        )
+        return usdc
 
     def get_balance(self) -> float:
         """Efectivo disponible: USDC real on-chain."""
@@ -92,7 +119,13 @@ class LiveBroker(PaperBroker):
         stake = self._apply_safety_limits(stake, pair)
         usdc = self.get_balance()
         if usdc < stake:
-            raise RuntimeError(f"USDC insuficiente on-chain: {usdc:.2f} < {stake:.2f}")
+            converted = self._auto_fund()
+            usdc = self.get_balance()
+            if usdc < stake:
+                raise RuntimeError(
+                    f"USDC insuficiente on-chain: {usdc:.2f} < {stake:.2f} "
+                    f"(auto-fund convirtió {converted:.2f})"
+                )
         sol_balance = self.jupiter.get_sol_balance()
         if sol_balance < self.s.jupiter.min_sol_balance:
             raise RuntimeError(
