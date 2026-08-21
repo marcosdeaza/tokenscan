@@ -68,9 +68,9 @@ class BacktestConfig(BaseModel):
 class JupiterConfig(BaseModel):
     enabled: bool = True
     slippage_bps: int = 100
-    min_trade_usd: float = 1.0
+    min_trade_usd: float = 0.5
     max_trade_usd: float = 100.0
-    min_sol_balance: float = 0.01
+    min_sol_balance: float = 0.0005
     priority_fee_lamports: int = 10000
     rpc_confirm_timeout_s: int = 30
 

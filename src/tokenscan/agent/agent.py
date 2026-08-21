@@ -203,7 +203,9 @@ Datos on-chain: {json.dumps(ctx['onchain'], indent=2 if ctx['onchain'] else '')}
 REGLAS:
 - Solo puedes comprar si tienes efectivo disponible.
 - Solo puedes vender si tienes posición abierta en ese par.
-- Cantidad máxima por operación: 20% del capital total.
+- Tamaño de posición: si el saldo es pequeño (< 50 USDC) usa la MAYOR parte
+  (hasta ~90%) en una sola operación para que mueva la aguja. Con saldo grande,
+  máx. 20% del capital por operación.
 - Riesgo máximo por operación: 1% del capital (sizing por volatilidad/ATR).
 - Respeta el régimen: en 'trend_up' prioriza compras, en 'trend_down' evita comprar,
   en 'ranging' busca reversión (RSI/Bollinger).
@@ -314,6 +316,9 @@ Acciones válidas: buy, sell, hold.
         from ..quant.risk import position_size_atr
         equity = self.get_available_capital()
         min_stake = self.s.jupiter.min_trade_usd
+        # Cuentas pequeñas: usa la mayor parte del capital para que el trade
+        # mueva la aguja; con saldo grande se mantiene el límite conservador.
+        max_pct = 0.90 if equity < 50.0 else self.s.risk.max_position_pct
         if atr_value and atr_value > 0 and price > 0:
             stake = position_size_atr(
                 self.s.risk, equity, atr_value, price,
@@ -322,9 +327,9 @@ Acciones válidas: buy, sell, hold.
                 open_trades=len(self.broker.open_positions()),
             )
             if stake < min_stake:
-                stake = equity * self.s.risk.max_position_pct
+                stake = equity * max_pct
             return max(0.0, stake)
-        return equity * self.s.risk.max_position_pct
+        return equity * max_pct
 
     def get_available_capital(self) -> float:
         return self.broker.get_balance()

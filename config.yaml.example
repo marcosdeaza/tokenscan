@@ -60,9 +60,9 @@ telegram:
 jupiter:
   enabled: true               # permite swaps reales on-chain
   slippage_bps: 100           # slippage máximo permitido (100 = 1%)
-  min_trade_usd: 1.0          # operación mínima en USDC (permite empezar pequeño)
-  max_trade_usd: 100.0        # tope por operación (protege el capital real)
-  min_sol_balance: 0.01       # SOL mínimo reservado para gas
+  min_trade_usd: 0.5         # operación mínima en USDC (permite empezar con ~1 USD)
+  max_trade_usd: 100.0       # tope por operación (protege el capital real)
+  min_sol_balance: 0.0005    # SOL mínimo reservado para gas (~5 tx)
   priority_fee_lamports: 10000  # comisión de prioridad para la tx
   rpc_confirm_timeout_s: 30   # espera máxima para confirmar la tx on-chain
 
