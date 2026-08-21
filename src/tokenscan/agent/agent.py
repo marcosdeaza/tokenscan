@@ -213,6 +213,8 @@ class LLMAgent:
         for pair, price in prices.items():
             self.broker.update_price(pair, price)
 
+        wallet["daily_pnl"] = self.db.daily_pnl(self.broker.wallet_id)
+
         return {
             "prices": prices,
             "signals": signals,
@@ -255,6 +257,8 @@ REGLAS:
 - El score compuesto en [-1, 1] es la convicción del ensemble: úsalo como
   señal objetiva, no solo tu intuición.
 - Sé conservador con la confianza: solo tradea si confianza > 60.
+- PnL del día en cartera: si es negativo y grande, prefiere hold o cerrar; no apuestes
+  a recuperar pérdidas con operaciones más grandes.
 - Sé BREVE en el razonamiento (máx. 20 palabras por decisión).
 
 RESPONDE EXACTAMENTE EN ESTE FORMATO JSON (sin markdown):
