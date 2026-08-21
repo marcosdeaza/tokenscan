@@ -193,6 +193,7 @@ REGLAS:
 - El score compuesto en [-1, 1] es la convicción del ensemble: úsalo como
   señal objetiva, no solo tu intuición.
 - Sé conservador con la confianza: solo tradea si confianza > 60.
+- Sé BREVE en el razonamiento (máx. 20 palabras por decisión).
 
 RESPONDE EXACTAMENTE EN ESTE FORMATO JSON (sin markdown):
 {{"decisions": [
@@ -206,7 +207,7 @@ Acciones válidas: buy, sell, hold.
             model=self.s.llm_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=8000,
+            max_tokens=16000,
         )
         content = resp.choices[0].message.content or ""
         if not content:
