@@ -41,7 +41,7 @@ class NewsFeed:
             )
             if r.ok:
                 return [{"title": p["title"], "url": p.get("url", "")} for p in r.json().get("results", [])]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.warning("NewsFeed error: %s", e)
         return []
 
@@ -61,6 +61,6 @@ class OnChainData:
         except ImportError:
             log.warning("web3 no instalado; pip install 'tokenscan[dex]'")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.warning("OnChain error: %s", e)
             return None
