@@ -187,6 +187,12 @@ class LLMAgent:
         }
 
     def _build_prompt(self, ctx: dict) -> str:
+        equity = ctx.get("wallet", {}).get("balance", 0) or 0
+        max_pct = self.s.effective_max_pct(equity)
+        sizing_rule = (
+            f"usa hasta ~{int(max_pct * 100)}% del capital en una sola operación "
+            f"(modo {'micro/auto (cuenta pequeña)' if max_pct >= 0.9 else 'standard'})"
+        )
         return f"""Eres un agente de trading cuantitativo con IA. Tu objetivo es hacer crecer el capital.
 
 CONTEXTO ACTUAL:
@@ -203,9 +209,7 @@ Datos on-chain: {json.dumps(ctx['onchain'], indent=2 if ctx['onchain'] else '')}
 REGLAS:
 - Solo puedes comprar si tienes efectivo disponible.
 - Solo puedes vender si tienes posición abierta en ese par.
-- Tamaño de posición: si el saldo es pequeño (< 50 USDC) usa la MAYOR parte
-  (hasta ~90%) en una sola operación para que mueva la aguja. Con saldo grande,
-  máx. 20% del capital por operación.
+- Tamaño de posición: {sizing_rule}.
 - Riesgo máximo por operación: 1% del capital (sizing por volatilidad/ATR).
 - Respeta el régimen: en 'trend_up' prioriza compras, en 'trend_down' evita comprar,
   en 'ranging' busca reversión (RSI/Bollinger).
@@ -316,9 +320,9 @@ Acciones válidas: buy, sell, hold.
         from ..quant.risk import position_size_atr
         equity = self.get_available_capital()
         min_stake = self.s.jupiter.min_trade_usd
-        # Cuentas pequeñas: usa la mayor parte del capital para que el trade
-        # mueva la aguja; con saldo grande se mantiene el límite conservador.
-        max_pct = 0.90 if equity < 50.0 else self.s.risk.max_position_pct
+        # El tier (micro/standard/auto) decide cuánto capital exponer:
+        # micro despliega casi todo, standard es conservador.
+        max_pct = self.s.effective_max_pct(equity)
         if atr_value and atr_value > 0 and price > 0:
             stake = position_size_atr(
                 self.s.risk, equity, atr_value, price,

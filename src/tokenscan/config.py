@@ -66,7 +66,13 @@ class BacktestConfig(BaseModel):
 
 
 class JupiterConfig(BaseModel):
+    """Reglas de ejecución on-chain. `tier` ajusta el sizing según el capital:
+    micro = despliega casi todo en 1 posición (cuentas pequeñas / pruebas),
+    standard = conservador (máx. risk.max_position_pct por operación),
+    auto = elige según el saldo on-chain (< 50 USDC -> micro).
+    La estrategia (qué comprar) es la misma en todos los tiers."""
     enabled: bool = True
+    tier: str = "auto"          # auto | micro | standard
     slippage_bps: int = 100
     min_trade_usd: float = 0.5
     max_trade_usd: float = 100.0
@@ -136,6 +142,16 @@ class Settings(BaseModel):
     @property
     def wallet_rpc(self) -> str:
         return self.solana_rpc_url if self.chain in ("solana", "sol") else self.rpc_url
+
+    def effective_max_pct(self, equity: float) -> float:
+        """% máximo del capital por operación según tier y saldo disponible."""
+        tier = self.jupiter.tier
+        if tier == "micro":
+            return 0.90
+        if tier == "standard":
+            return self.risk.max_position_pct
+        # auto: cuentas pequeñas se comportan como micro
+        return 0.90 if equity < 50.0 else self.risk.max_position_pct
 
     def pair_base(self, pair: str) -> str:
         return pair.split("/")[0].upper()

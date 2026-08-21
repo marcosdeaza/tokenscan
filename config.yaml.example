@@ -59,6 +59,11 @@ telegram:
 # --- Ejecución on-chain (Jupiter / Solana) — solo aplica en mode=live ---
 jupiter:
   enabled: true               # permite swaps reales on-chain
+  tier: auto                  # auto | micro | standard
+                              #  micro   = usa ~90% del capital por operación (cuentas
+                              #            pequeñas, pruebas con 1-10 USDC)
+                              #  standard= conservador, máx. risk.max_position_pct (20%)
+                              #  auto    = micro si saldo < 50 USDC, standard si no
   slippage_bps: 100           # slippage máximo permitido (100 = 1%)
   min_trade_usd: 0.5         # operación mínima en USDC (permite empezar con ~1 USD)
   max_trade_usd: 100.0       # tope por operación (protege el capital real)
