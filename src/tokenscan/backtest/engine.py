@@ -155,7 +155,12 @@ class Backtester:
                     atr_value = float(row.get("atr", 0.0)) or 0.0
                     min_stake = self.s.jupiter.min_trade_usd
                     max_pct = self.s.effective_max_pct(equity)
-                    if atr_value > 0:
+                    # Tier micro: usar el % del tier (90%) directamente, igual que
+                    # el agente live. El sizing por ATR (riesgo 1%) deja demasiado
+                    # capital en caja en cuentas pequeñas y diluye el crecimiento.
+                    if self.s.jupiter.tier == "micro":
+                        stake = equity * max_pct
+                    elif atr_value > 0:
                         stake = position_size_atr(
                             self.s.risk, equity, atr_value, price,
                             risk_pct=self.s.risk.risk_per_trade_pct,

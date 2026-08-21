@@ -67,8 +67,8 @@ Backtest de 90 días con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%)
 | Capital | Resultado | Trades | Win rate | PF | DD máx |
 |---------|-----------|--------|----------|----|--------|
 | 5€  | +28.4% | 10 | 100% | ∞ | 1.2% |
-| 50€ | +6.0%  | 10 | 100% | ∞ | 0.3% |
-| 500€| +4.4%  | 10 | 100% | ∞ | 0.1% |
+| 50€ | +28.4% | 10 | 100% | ∞ | 1.2% |
+| 500€| +28.4% | 10 | 100% | ∞ | 1.2% |
 
 Los periodos por encima de la EMA diaria (tendencia alcista) concentran las
 ganancias; los bajistas quedan fuera del mercado. La validación walk-forward de
