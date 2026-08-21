@@ -1,0 +1,60 @@
+# ============================================================
+# TokenScan — configuración principal
+# Copia este archivo como config.yaml y ajusta a tu gusto.
+# ============================================================
+
+mode: paper          # paper | live | backtest
+timeframe: 5m        # 1m, 5m, 15m, 1h, 4h, 1d...
+interval: 300        # segundos entre cada ciclo del agente (5 min)
+
+# Capital virtual inicial (modo paper)
+paper_capital: 100.0
+
+# Monedas que el agente puede operar (pares en el exchange)
+trading_pairs:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+
+# --- Estrategia por defecto (usada si no hay LLM configurado) ---
+strategy:
+  name: rsi_reversion
+  rsi_period: 14
+  rsi_oversold: 30
+  rsi_overbought: 70
+  ema_fast: 12
+  ema_slow: 26
+
+# --- Gestión de riesgo ---
+risk:
+  max_position_pct: 0.20      # máximo 20% del capital por posición
+  stop_loss_pct: 0.05         # stop-loss 5%
+  take_profit_pct: 0.10       # take-profit 10%
+  trailing_stop_pct: 0.03     # trailing stop 3% tras alcanzar +4%
+  trailing_activate_pct: 0.04
+  max_open_trades: 3
+  max_daily_loss_pct: 0.10    # frenar en seco si pierdes 10% en el día
+  cooldown_minutes: 15        # pausa tras un stop-loss
+
+# --- Agente LLM ---
+agent:
+  enabled: true               # si es true y hay LLM_API_KEY, usa la IA
+  max_trades_per_cycle: 2     # operaciones máximas por ciclo de decisión
+  risk_tolerance: 0.25        # 0 (muy conservador) a 1 (agresivo)
+  news_enabled: false         # habilita herramientas de noticias (usa internet)
+  chain_enabled: false        # habilita lectura on-chain (requiere RPC)
+  memory_entries: 50          # cuántas decisiones pasadas recuerda
+
+# --- Telegram ---
+telegram:
+  enabled: true
+  notify_trades: true         # avisa de cada operación
+  notify_cycles: false        # avisa resumen en cada ciclo (ruidoso)
+
+# --- Backtest ---
+backtest:
+  days: 90                    # cuánto histórico usar
+  initial_capital: 1000.0
+  fee_pct: 0.1                # comisión 0.1% por lado (taker)
+  slippage_pct: 0.05          # slippage simulado 0.05%
+  output_dir: results/backtest

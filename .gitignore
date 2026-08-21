@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ruff_cache/
+
+# Entornos y secretos — NUNCA subir credenciales
+.env
+*.env
+!*.env.example
+
+# Datos generados
+data/
+*.db
+*.sqlite
+*.sqlite3
+cache/
+backtest_results/
+
+# Resultados de trading — dejar solo lo que se quiera publicar en results/
+results/*.csv
+results/*.png
+!results/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/

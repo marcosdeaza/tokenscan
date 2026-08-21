@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tokenscan"
+version = "0.1.0"
+description = "TokenScan — AI trading agent para cripto. Simbiosis entre inteligencia artificial y mercados blockchain."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Marcos de Aza", email = "marcosdeaza@users.noreply.github.com" }]
+dependencies = [
+    "ccxt>=4.3.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "python-telegram-bot>=21.0",
+    "openai>=1.30.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dex = ["web3>=6.0.0"]
+backtest = ["matplotlib>=3.7.0"]
+dev = ["pytest>=7.0.0", "ruff>=0.3.0"]
+
+[project.scripts]
+tokenscan = "tokenscan.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tokenscan*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
