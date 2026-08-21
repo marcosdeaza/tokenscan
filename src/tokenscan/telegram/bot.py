@@ -16,6 +16,7 @@ from ..config import Settings
 from ..execution.paper import PaperBroker
 from ..storage.db import Database
 from ..utils.logger import setup_logger
+from ..wallet import create_wallet, wallet_factory
 
 log = setup_logger("tokenscan.telegram")
 
@@ -79,6 +80,8 @@ class TokenScanBot:
             "/pnl — estadísticas de rendimiento\n"
             "/trade &lt;PAR&gt; &lt;buy|sell&gt; &lt;monto&gt; — operación manual\n"
             "/agent_start / agent_stop — arrancar/parar el agente IA\n"
+            "/wallet_onchain — ver cartera blockchain real\n"
+            "/create_wallet &lt;base|solana&gt; — crear cartera real\n"
             "/status — estado del sistema",
             parse_mode=ParseMode.HTML,
         )
@@ -225,6 +228,59 @@ class TokenScanBot:
             parse_mode=ParseMode.HTML,
         )
 
+    @authorized_only
+    async def cmd_wallet_onchain(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Muestra la cartera on-chain configurada (dirección + saldos reales)."""
+        chain = context.args[0].lower() if context.args else self.s.chain
+        if not self.s.wallet_private_key:
+            await update.message.reply_text(
+                "🔐 No hay cartera configurada.\n\n"
+                "Para usar una cartera real:\n"
+                "  • Crea una nueva: /create_wallet <b>base</b>|solana\n"
+                "  • O pon tu WALLET_PRIVATE_KEY en el .env",
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        try:
+            wallet = wallet_factory(chain, self.s.wallet_rpc, self.s.wallet_private_key)
+            info = wallet.get_info()
+            if not info.address:
+                await update.message.reply_text("❌ No se pudo derivar dirección.")
+                return
+            await update.message.reply_text(
+                "🛰 <b>Cartera on-chain</b>\n" + info.summary(),
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:  # noqa: BLE001
+            await update.message.reply_text(f"❌ Error: {e}")
+
+    @authorized_only
+    async def cmd_create_wallet(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Crea una cartera nueva en la cadena indicada y muestra la clave privada."""
+        if not context.args:
+            await update.message.reply_text("Uso: /create_wallet <b>base</b>|solana")
+            return
+        chain = context.args[0].lower()
+        try:
+            wallet = create_wallet(chain, self.s.wallet_rpc)
+            info = wallet.get_info()
+            if not info.address or not info.private_key:
+                await update.message.reply_text("❌ No se pudo crear la cartera.")
+                return
+            await update.message.reply_text(
+                "🆕 <b>Cartera creada</b>\n"
+                + info.summary()
+                + "\n\n🔑 <b>Clave privada:</b>\n"
+                f"<code>{info.private_key}</code>\n\n"
+                "⚠️ <b>GUÁRDALA EN UN LUGAR SEGURO.</b>\n"
+                "Quien tenga esta clave controla la cartera. "
+                "Para activarla, copia la clave en WALLET_PRIVATE_KEY (archivo .env) "
+                "y usa: /wallet_onchain",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:  # noqa: BLE001
+            await update.message.reply_text(f"❌ Error: {e}")
+
 
 def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: LLMAgent) -> Application:
     bot = TokenScanBot(settings, db, broker, agent)
@@ -240,6 +296,8 @@ def run_telegram(settings: Settings, db: Database, broker: PaperBroker, agent: L
         ("trade", bot.cmd_trade),
         ("agent_start", bot.cmd_agent_start),
         ("agent_stop", bot.cmd_agent_stop),
+        ("wallet_onchain", bot.cmd_wallet_onchain),
+        ("create_wallet", bot.cmd_create_wallet),
         ("status", bot.cmd_status),
     ]
     for name, handler in handlers:

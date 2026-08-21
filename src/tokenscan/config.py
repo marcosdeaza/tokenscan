@@ -83,7 +83,9 @@ class Settings(BaseModel):
     exchange_api_key: str = ""
     exchange_api_secret: str = ""
     exchange_testnet: bool = False
+    chain: str = "base"
     rpc_url: str = "https://mainnet.base.org"
+    solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     wallet_private_key: str = ""
 
     @classmethod
@@ -105,7 +107,9 @@ class Settings(BaseModel):
             "exchange_api_key": os.getenv("EXCHANGE_API_KEY", ""),
             "exchange_api_secret": os.getenv("EXCHANGE_API_SECRET", ""),
             "exchange_testnet": os.getenv("EXCHANGE_TESTNET", "false").lower() == "true",
+            "chain": os.getenv("CHAIN", "base"),
             "rpc_url": os.getenv("RPC_URL", "https://mainnet.base.org"),
+            "solana_rpc_url": os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
             "wallet_private_key": os.getenv("WALLET_PRIVATE_KEY", ""),
         }
         return cls(**raw, **secrets)
@@ -124,6 +128,10 @@ class Settings(BaseModel):
     @property
     def agent_available(self) -> bool:
         return self.agent.enabled and bool(self.llm_api_key)
+
+    @property
+    def wallet_rpc(self) -> str:
+        return self.solana_rpc_url if self.chain in ("solana", "sol") else self.rpc_url
 
     def pair_base(self, pair: str) -> str:
         return pair.split("/")[0].upper()

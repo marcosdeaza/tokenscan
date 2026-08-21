@@ -42,7 +42,7 @@ agent:
   max_trades_per_cycle: 2     # operaciones máximas por ciclo de decisión
   risk_tolerance: 0.25        # 0 (muy conservador) a 1 (agresivo)
   news_enabled: false         # habilita herramientas de noticias (usa internet)
-  chain_enabled: false        # habilita lectura on-chain (requiere RPC)
+  chain_enabled: false        # habilita lectura on-chain (requiere RPC + WALLET_PRIVATE_KEY)
   memory_entries: 50          # cuántas decisiones pasadas recuerda
 
 # --- Telegram ---

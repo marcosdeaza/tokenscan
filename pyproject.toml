@@ -25,6 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dex = ["web3>=6.0.0"]
+solana = ["solders>=0.21.0", "base58>=2.1.0"]
 backtest = ["matplotlib>=3.7.0"]
 dev = ["pytest>=7.0.0", "ruff>=0.3.0"]
 

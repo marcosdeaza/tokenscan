@@ -47,20 +47,54 @@ class NewsFeed:
 
 
 class OnChainData:
-    def __init__(self, enabled: bool = False, rpc_url: str = ""):
+    def __init__(self, enabled: bool = False, rpc_url: str = "", chain: str = "base",
+                 private_key: str = ""):
         self.enabled = enabled
         self.rpc_url = rpc_url
+        self.chain = chain
+        self.private_key = private_key
+        self._wallet = None
+
+    @property
+    def wallet(self):
+        if self._wallet is None:
+            from ..wallet import wallet_factory
+            self._wallet = wallet_factory(self.chain, self.rpc_url, self.private_key or None)
+        return self._wallet
 
     def latest_block(self) -> dict | None:
         if not self.enabled:
             return None
         try:
+            if self.chain in ("solana", "sol"):
+                from ..wallet.solana import _rpc_call
+                slot = _rpc_call(self.rpc_url, "getSlot")
+                return {"block": slot, "chain": self.chain}
             from web3 import Web3
             w3 = Web3(Web3.HTTPProvider(self.rpc_url))
             return {"block": w3.eth.block_number, "gas_price": w3.eth.gas_price}
         except ImportError:
-            log.warning("web3 no instalado; pip install 'tokenscan[dex]'")
+            log.warning("Deps on-chain no instaladas; pip install 'tokenscan[dex,solana]'")
             return None
         except Exception as e:  # noqa: BLE001
             log.warning("OnChain error: %s", e)
+            return None
+
+    def wallet_info(self) -> dict | None:
+        """Dirección y saldos de la cartera configurada (o None si no hay clave)."""
+        if not self.enabled or not self.private_key:
+            return None
+        try:
+            info = self.wallet.get_info()
+            return {
+                "chain": info.chain.value,
+                "address": info.address,
+                "native_balance": info.native_balance,
+                "tokens": [
+                    {"symbol": t.symbol, "balance": t.balance}
+                    for t in info.tokens
+                ],
+            }
+        except Exception as e:  # noqa: BLE001
+            log.warning("Wallet info error: %s", e)
             return None

@@ -70,11 +70,44 @@ src/tokenscan/
 ├── execution/  → broker paper (virtual) + cliente ccxt (modo real)
 ├── data/       → feeds de mercado, noticias, on-chain
 ├── agent/      → loop del agente: LLM configurable + fallback determinista
+├── wallet/     → carteras blockchain reales: EVM/Base (web3) y Solana (solders)
 ├── storage/    → SQLite (wallets, trades, órdenes, memoria, PnL)
 ├── telegram/   → bot de Telegram
 ├── backtest/   → motor de backtesting con métricas (Sharpe, Sortino, DD…)
 └── config.py   → configuración tipada (pydantic)
 ```
+
+---
+
+## Carteras blockchain reales
+
+TokenScan puede crear y consultar **carteras reales en cadena** (no solo la
+virtual del paper trading):
+
+| Cadena | Dependencia | RPC por defecto |
+|--------|-------------|-----------------|
+| Base (EVM) | `pip install "tokenscan[dex]"` | `https://mainnet.base.org` |
+| Solana | `pip install "tokenscan[solana]"` | `https://api.mainnet-beta.solana.com` |
+
+Para usarlas:
+
+```bash
+pip install -e ".[dex,solana]"
+
+# En el .env:
+CHAIN=base                    # base | solana
+WALLET_PRIVATE_KEY=tu-clave   # déjala vacía para crearla con el bot
+```
+
+Crea una cartera nueva directamente desde Telegram con `/create_wallet base` (o
+`solana`): el bot genera las claves, te muestra la dirección y la clave privada
+una sola vez. Guárdala a buen recaudo: quien tenga la clave controla la cartera.
+
+Consulta dirección y saldos reales en cualquier momento con `/wallet_onchain`.
+
+> **Importante**: las carteras on-chain son de **solo lectura** (dirección y
+> saldos). No envían ni operan fondos automáticamente. La ejecución de operaciones
+> sigue siendo la del broker configurado (paper por defecto).
 
 ---
 
@@ -102,6 +135,8 @@ la estrategia determinista RSI.
 | Comando | Descripción |
 |---------|-------------|
 | `/wallet` | Cartera virtual |
+| `/wallet_onchain` | Ver cartera blockchain real (dirección y saldos) |
+| `/create_wallet base\|solana` | Crear una cartera blockchain nueva |
 | `/deposit 20` | Ingresar fondos (paper) |
 | `/withdraw 10` | Retirar (paper) |
 | `/balance` | Saldo, equity y PnL |

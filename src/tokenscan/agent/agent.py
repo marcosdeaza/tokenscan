@@ -38,7 +38,12 @@ class LLMAgent:
         self.db = db
         self.market = market
         self.news = NewsFeed(settings.agent.news_enabled)
-        self.onchain = OnChainData(settings.agent.chain_enabled, settings.rpc_url)
+        self.onchain = OnChainData(
+            settings.agent.chain_enabled,
+            settings.wallet_rpc,
+            chain=settings.chain,
+            private_key=settings.wallet_private_key,
+        )
         self._client = None
         self._cycle = 0
         self._fallback_strategy = get_strategy(
