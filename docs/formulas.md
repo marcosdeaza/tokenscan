@@ -1,214 +1,197 @@
-# Las fórmulas de TokenScan
+# Fórmulas del sistema cuantitativo
 
-Este documento explica **cada fórmula** que usa TokenScan, de forma sencilla y con
-la referencia de dónde la hemos tomado. Todo está implementado en `src/tokenscan/quant/`
-(`indicators.py`, `risk.py`) y `src/tokenscan/utils/pnl.py`, con numpy/pandas puro
-— sin TA-Lib, sin cajas negras.
+## Indicadores técnicos
 
----
-
-## 1. Indicadores técnicos
-
-### RSI — Relative Strength Index (Wilder)
-
-Mide la velocidad y magnitud de los movimientos de precio (0–100).
-**>70 sobrecomprado, <30 sobrevendido.**
-
+### RSI (Relative Strength Index)
 ```
 RSI = 100 - 100 / (1 + RS)
-
-RS   = media suavizada de ganancias / media suavizada de pérdidas
-       donde la suavización usa alpha = 1/period (smoothing de Wilder)
+RS = EMA(ganancias, alpha=1/14) / EMA(pérdidas, alpha=1/14)
 ```
+Fuente: Wilder (1978). Suavizado exponencial con alpha=1/period en lugar de SMA.
 
-- **Implementación**: `indicators.rsi()` — media con `ewm(alpha=1/period)`
-- **Referencia**: J. Welles Wilder, *New Concepts in Technical Trading Systems* (1978); [Investopedia](https://www.investopedia.com/terms/r/rsi.asp)
-
-### EMA — Exponential Moving Average
-
-Media que da más peso a los datos recientes.
-
+### ATR (Average True Range)
 ```
-alpha = 2 / (period + 1)
-EMA_t = Precio_t × alpha + EMA_{t-1} × (1 - alpha)
+TR = max(high - low, |high - prev_close|, |low - prev_close|)
+ATR = EMA(TR, 14)
 ```
+Fuente: Wilder (1978).
 
-- **Implementación**: `indicators.ema()` — `Series.ewm(span=period)`
-- **Referencia**: [Investopedia — EMA](https://www.investopedia.com/terms/e/ema.asp)
-
-### ATR — Average True Range (Wilder)
-
-Mide la volatilidad. Se usa para tamaños de stop-loss realistas.
-
+### ADX (Average Directional Index)
 ```
-TR   = max( High-Low, |High-PrevClose|, |Low-PrevClose| )
-ATR  = EMA suavizada (alpha=1/period) de TR
++DM = max(high - prev_high, 0) si > prev_low - low, sino 0
+-DM = max(prev_low - low, 0) si > high - prev_high, sino 0
++DI = 100 * Wilder(+DM) / ATR
+-DI = 100 * Wilder(-DM) / ATR
+DX = 100 * |+DI - -DI| / (+DI + -DI)
+ADX = Wilder(DX, 14)
 ```
+Interpretación: ADX < 20 → rango; 20-25 → transición; ≥ 25 → tendencia.
++DI > -DI con ADX alto → tendencia alcista. -DI > +DI → bajista.
 
-- **Implementación**: `indicators.atr()`
-- **Referencia**: Wilder (1978); [Investopedia — ATR](https://www.investopedia.com/terms/a/atr.asp)
+### Efficiency Ratio (Kaufman)
+```
+ER = |P_t - P_{t-n}| / Σ|P_i - P_{i-1}|, n = 10
+```
+Rango [0, 1]. ER > 0.5 → tendencia fuerte; ER < 0.3 → ruido/rango.
+Fuente: Kaufman (1995), *Trading Systems and Methods*.
 
 ### MACD
-
-Detección de tendencia y momentum por cruce de EMAs.
-
 ```
-MACD      = EMA(12) - EMA(26)
-Señal     = EMA(9) del MACD
-Histograma = MACD - Señal
+MACD = EMA(close, 12) - EMA(close, 26)
+Signal = EMA(MACD, 9)
+Histogram = MACD - Signal
 ```
-
-- **Implementación**: `indicators.macd()`
-- **Referencia**: Gerald Appel (1979); [Investopedia — MACD](https://www.investopedia.com/terms/m/macd.asp)
 
 ### Bollinger Bands
-
-Banda central (SMA 20) ± 2 desviaciones estándar. El precio toca bandas →
-posible reacción.
-
 ```
-Mid  = SMA(close, 20)
-Std  = desv. estándar poblacional (ddof=0)
-Upper/Lower = Mid ± 2 × Std
-```
-
-- **Implementación**: `indicators.bollinger()`
-- **Referencia**: John Bollinger (1980s); [Investopedia — Bollinger](https://www.investopedia.com/terms/b/bollingerbands.asp)
-
-### Volatilidad anualizada
-
-Volatilidad de los retornos diarios proyectada a un año (≈365 días).
-
-```
-Vol_anual = std(retornos, ventana 21) × √365
+Mid = SMA(close, 20)
+Std = σ(close, 20)
+Upper = Mid + 2 * Std
+Lower = Mid - 2 * Std
+%B = (close - Lower) / (Upper - Lower)
+Width = (Upper - Lower) / Mid
 ```
 
-- **Implementación**: `indicators.volatility()`
-- **Referencia**: estándar en finanzas cuantitativas; [Investopedia — Volatility](https://www.investopedia.com/terms/v/volatility.asp)
-
----
-
-## 2. Gestión de riesgo
-
-### Kelly Criterion
-
-Fracción óptima del capital a arriesgar por operación.
-
+### Stochastic Oscillator
 ```
-f* = (p × b - q) / b
-
-p = win rate        q = 1 - p
-b = ganancia media / pérdida media
+%K = 100 * (close - min_low_n) / (max_high_n - min_low_n), n = 14
+%D = SMA(%K, 3)
 ```
 
-TokenScan usa **media-Kelly** (la mitad) con **cap del 25%** para ser conservador:
-`f = min(f* × 0.5, 0.25)`.
-
-- **Implementación**: `pnl.kelly_fraction()`, `risk.position_size()`
-- **Referencia**: John L. Kelly, "A New Interpretation of Information Rate" (1956); [Investopedia](https://www.investopedia.com/terms/k/kellycriterion.asp)
-
-### Tamaño de posición
-
+### Volatility (anualizada)
 ```
-stake = min(equity × f, equity / slots_libres)
-       f limitado además por max_position_pct (20%)
+σ_anual = σ(returns) * √252
 ```
 
-- **Implementación**: `risk.position_size()`
-- **Referencia**: patrón de sizing de freqtrade (`max_open_trades`, `stake_amount`)
-
-### Stop-loss, take-profit y trailing
-
+### Rate of Change (ROC)
 ```
-SL long  = precio_apertura × (1 - 5%)
-TP long  = precio_apertura × (1 + 10%)
-Trailing = mejor_precio × (1 - 3%), solo activo tras +4% de beneficio
+ROC = (P_t / P_{t-n}) - 1, n = 10
 ```
 
-- **Implementación**: `risk.stop_price()`, `risk.take_profit_price()`, `risk.trailing_stop_price()`
-- **Referencia**: gestión de riesgo clásica + patrón de freqtrade (`stoploss`, `trailing_stop`)
-
-### Halt por pérdida diaria
-
+### Volume Ratio
 ```
-SI (PnL_diario / equity) ≤ -10%  →  el agente se detiene ese día
+VolRatio = volumen / SMA(volumen, 20)
 ```
 
-- **Implementación**: `risk.should_halt_daily_loss()`
-- **Referencia**: risk management estándar (p.ej. "daily loss limit")
-
----
-
-## 3. PnL y métricas
-
-### PnL de un trade
-
+### VWAP
 ```
-PnL long  = amount × close × (1-fee) − amount × open × (1+fee)
-PnL short = amount × open × (1-fee) − amount × close × (1+fee)
+VWAP = Σ(price_i * volume_i) / Σ(volume_i)
+price_i = (high + low + close) / 3
 ```
 
-- **Implementación**: `pnl.TradeResult` (fees aplicados por los dos lados)
-
-### Win rate
-
+### Price Position
 ```
-Win rate = trades con PnL > 0 / total de trades
+PricePos = (close - min_n) / (max_n - min_n), n = 20
 ```
 
-- **Referencia**: métrica universal
+## Detección de régimen
 
-### Profit factor
+Tres votos, gana por mayoría simple:
 
+1. **ADX**: ≥ 20 → tendencia (dirección por +DI vs -DI); < 20 → rango.
+2. **Efficiency Ratio**: ≥ 0.35 → tendencia (dirección por pendiente de precio); < 0.35 → rango.
+3. **EMA slope**: pendiente de EMA(50) en 5 velas. Umbral plano: ±0.002.
+
+Fuerza = votos_del_ganador / total_votos.
+
+## Score compuesto
+
+Cada señal emite convicción en [-1, 1]. Se ponderan y promedian sobre las que votan activamente.
+
+### Señales individuales
+
+- **RSI**: `(RSI - 50) / 50` → [-1, 1]
+- **Stochastic %K**: `(%K - 50) / 50` → [-1, 1]
+- **MACD**: `tanh(histograma / (2 * σ_hist))` → [-1, 1]
+- **Bollinger %B**: `(%B - 0.5) * 2` → [-1, 1]
+- **Momentum (ROC)**: `clamp(ROC / (2 * σ_ROC))` → [-1, 1]
+- **EMA trend**: `clamp((EMA_fast - EMA_slow) / EMA_slow * 20)` → [-1, 1]
+- **Price position**: `clamp((PricePos - 0.5) * 2)` → [-1, 1]
+
+### Filtro ADX
+
+Las señales de reversión (RSI, Stoch, BB) se atenúan cuando hay tendencia fuerte:
 ```
-Profit factor = ganancias brutas / pérdidas brutas
-```
-
-- **Referencia**: estándar de la industria
-
-### Max drawdown
-
-```
-DD_rel = max( (peak - valor) / peak )  sobre toda la curva de equity
-```
-
-- **Referencia**: métrica universal
-
-### Sharpe ratio
-
-Rentabilidad ajustada al riesgo total.
-
-```
-Sharpe = (media_retorno - risk_free) / desv_estándar_retornos × √365
-```
-
-- **Referencia**: William Sharpe (1966); [Investopedia — Sharpe](https://www.investopedia.com/terms/s/sharperatio.asp)
-
-### Sortino ratio
-
-Igual que Sharpe, pero solo penaliza la volatilidad **negativa** (downside).
-
-```
-Sortino = (media_retorno - risk_free) / desv_estándar_downside × √365
+filter = 1.0 si ADX < 20
+filter = 0.0 si ADX > 40
+filter = 1 - (ADX - 20) / 20 en [20, 40]
 ```
 
-- **Referencia**: Frank Sortino; [Investopedia — Sortino](https://www.investopedia.com/terms/s/sortinoratio.asp)
+### Decisión final
 
----
+```
+score = Σ(w_i * señal_i) / Σ(w_i)
+bullish if score > 0.3
+bearish if score < -0.25
+hold otherwise
+```
 
-## 4. De dónde viene todo esto
+## Gestión de riesgo
 
-Todas las fórmulas anteriores son **de dominio público / estándar de mercado**.
-Las reimplementamos desde cero en TokenScan. Los **patrones de arquitectura**
-(diseño de estrategia, paper-trading, Telegram, loop de agente LLM) siguen la
-filosofía de proyectos open-source que estudiamos:
+### Position Sizing (ATR / Turtle)
+```
+risk_amount = equity * risk_per_trade_pct        # 1% del capital
+notional = risk_amount / (atr_multiplier * ATR)  # 2 ATR
+slot_cap = equity / (max_open_trades - open_trades)
+size = min(notional, slot_cap, equity)
+```
 
-| Proyecto | Qué aporta a TokenScan | Licencia |
-|----------|------------------------|----------|
-| [freqtrade](https://github.com/freqtrade/freqtrade) | diseño de estrategias, risk manager, paper-trading | GPL-3.0 |
-| [jesse](https://github.com/jesse-ai/jesse) | motor de backtest, métricas | MIT |
-| [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) | patrón agente LLM (prompt + JSON) | MIT |
-| [ccxt](https://github.com/ccxt/ccxt) | acceso unificado a exchanges | MIT |
+### Stop-loss y Take-profit (ATR)
+```
+SL_long = entry - ATR * atr_sl_multiplier   # 2 ATR
+TP_long = entry + ATR * atr_tp_multiplier   # 3 ATR
+SL_short = entry + ATR * atr_sl_multiplier
+TP_short = entry - ATR * atr_tp_multiplier
+```
 
-> ⚠️ Tomamos **conceptos y matemáticas**, nunca copiamos código. Todo TokenScan
-> es código original (MIT). Detalle completo en [CREDITS.md](../CREDITS.md).
+### Portfolio Volatility Targeting
+```
+σ_real = σ(daily_returns) * √252
+leverage = min(target_vol / σ_real, max_leverage)
+exposure = equity * max(0, leverage)
+```
+
+### Kelly Fraction
+```
+b = avg_win / avg_loss
+p = win_rate
+f = (p * b - q) / b    # Kelly óptimo
+f_used = min(f * 0.5, 0.25)   # media-Kelly, cap 25%
+```
+
+## Métricas de rendimiento
+
+### CAGR
+```
+CAGR = (final / initial)^(365 / days) - 1
+```
+
+### Calmar Ratio
+```
+Calmar = CAGR / max_drawdown_relativo
+```
+
+### Sharpe Ratio
+```
+Sharpe = (mean(returns) - r_f / periods) / σ(returns) * √periods
+```
+
+### Sortino Ratio
+```
+Sortino = (mean(returns) - r_f / periods) / σ_downside * √periods
+```
+
+### System Quality Number (SQN) — Van Tharp
+```
+SQN = √(n) * mean(pnl) / σ(pnl)
+```
+Requiere ≥ 30 trades. Interpretación: < 1 pobre, 1.6-2.0 regular, 2.0-2.5 promedio, 2.5-3.0 bueno, 3.0-5.0 excelente, > 5 excepcional.
+
+### Expectancy
+```
+E = (win_rate * avg_win) - (loss_rate * avg_loss)
+```
+Equivalente a la media de PnL de los trades. Positiva = edge positivo.
+
+### Win/Loss Streaks
+Racha máxima consecutiva de trades ganadores y perdedores.

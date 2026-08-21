@@ -28,13 +28,18 @@ strategy:
 # --- Gestión de riesgo ---
 risk:
   max_position_pct: 0.20      # máximo 20% del capital por posición
-  stop_loss_pct: 0.05         # stop-loss 5%
-  take_profit_pct: 0.10       # take-profit 10%
+  stop_loss_pct: 0.05         # stop-loss 5% (fallback si no hay ATR)
+  take_profit_pct: 0.10       # take-profit 10% (fallback si no hay ATR)
   trailing_stop_pct: 0.03     # trailing stop 3% tras alcanzar +4%
   trailing_activate_pct: 0.04
   max_open_trades: 3
   max_daily_loss_pct: 0.10    # frenar en seco si pierdes 10% en el día
   cooldown_minutes: 15        # pausa tras un stop-loss
+  risk_per_trade_pct: 0.01    # riesgo 1% del capital por operación (regla Turtle)
+  atr_sl_multiplier: 2.0      # stop-loss a 2 ATR del precio de entrada
+  atr_tp_multiplier: 3.0      # take-profit a 3 ATR del precio de entrada
+  vol_target_annual: 0.15     # objetivo de volatilidad anual para vol targeting
+  vol_max_leverage: 1.0       # palanca máxima permitida (1.0 = sin apalancar)
 
 # --- Agente LLM ---
 agent:

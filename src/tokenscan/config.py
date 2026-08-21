@@ -26,6 +26,11 @@ class RiskConfig(BaseModel):
     max_open_trades: int = 3
     max_daily_loss_pct: float = 0.10
     cooldown_minutes: int = 15
+    risk_per_trade_pct: float = 0.01
+    atr_sl_multiplier: float = 2.0
+    atr_tp_multiplier: float = 3.0
+    vol_target_annual: float = 0.15
+    vol_max_leverage: float = 1.0
 
 
 class StrategyConfig(BaseModel):

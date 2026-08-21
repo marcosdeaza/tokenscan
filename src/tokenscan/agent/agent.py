@@ -119,9 +119,11 @@ class LLMAgent:
     def _build_context(self) -> dict:
         prices: dict[str, float] = {}
         signals: dict[str, dict] = {}
+        regimes: dict[str, dict] = {}
+        scores: dict[str, dict] = {}
         for pair in self.s.trading_pairs:
             try:
-                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 100)
+                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 200)
                 df = self._fallback_strategy.compute_indicators(df)
                 last = df.iloc[-1]
                 prices[pair] = last["close"]
@@ -132,7 +134,17 @@ class LLMAgent:
                     "macd_hist": round(last.get("macd_hist", 0), 4),
                     "atr": round(last.get("atr", 0), 4),
                     "volatility": round(last.get("vol_ann", 0), 4),
+                    "adx": round(last.get("adx", 0), 1),
+                    "kaufman_er": round(last.get("kaufman_er", 0), 3),
+                    "bb_pct_b": round(last.get("bb_pct_b", 0.5), 3),
+                    "stoch_k": round(last.get("stoch_k", 50), 1),
+                    "roc": round(last.get("roc", 0), 4),
+                    "vol_ratio": round(last.get("vol_ratio", 1), 2),
                 }
+                from ..quant.regime import detect_regime
+                from ..quant.scorer import composite_score
+                regimes[pair] = detect_regime(df).as_dict()
+                scores[pair] = composite_score(df)
             except Exception as e:  # noqa: BLE001
                 log.warning("Error fetching %s: %s", pair, e)
 
@@ -148,6 +160,8 @@ class LLMAgent:
         return {
             "prices": prices,
             "signals": signals,
+            "regimes": regimes,
+            "scores": scores,
             "wallet": wallet,
             "positions": positions,
             "memory": [{"cycle": m["cycle"], "decision": m["decision"], "pnl": m["pnl_impact"]} for m in memory[-10:]],
@@ -160,6 +174,8 @@ class LLMAgent:
 
 CONTEXTO ACTUAL:
 Señales técnicas por par: {json.dumps(ctx['signals'], indent=2)}
+Régimen de mercado por par: {json.dumps(ctx['regimes'], indent=2)}
+Score compuesto (ensemble) por par: {json.dumps(ctx['scores'], indent=2)}
 Precios actuales: {json.dumps(ctx['prices'], indent=2)}
 Cartera: {json.dumps(ctx['wallet'], indent=2)}
 Posiciones abiertas: {json.dumps(ctx['positions'], indent=2)}
@@ -171,9 +187,12 @@ REGLAS:
 - Solo puedes comprar si tienes efectivo disponible.
 - Solo puedes vender si tienes posición abierta en ese par.
 - Cantidad máxima por operación: 20% del capital total.
-- Riesgo máximo por operación: 5% del capital.
+- Riesgo máximo por operación: 1% del capital (sizing por volatilidad/ATR).
+- Respeta el régimen: en 'trend_up' prioriza compras, en 'trend_down' evita comprar,
+  en 'ranging' busca reversión (RSI/Bollinger).
+- El score compuesto en [-1, 1] es la convicción del ensemble: úsalo como
+  señal objetiva, no solo tu intuición.
 - Sé conservador con la confianza: solo tradea si confianza > 60.
-- Ten en cuenta las noticias y datos on-chain en tu razonamiento.
 
 RESPONDE EXACTAMENTE EN ESTE FORMATO JSON (sin markdown):
 {{"decisions": [
@@ -226,25 +245,58 @@ Acciones válidas: buy, sell, hold.
         decisions: list[Decision] = []
         open_pairs = {p["pair"] for p in self.broker.open_positions()}
 
+        from ..quant.regime import detect_regime
+        from ..quant.scorer import composite_score
+
         for pair in self.s.trading_pairs:
             if pair in open_pairs:
                 continue
             try:
-                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 100)
+                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 200)
                 df = self._fallback_strategy.compute_indicators(df)
                 last = df.iloc[-1]
-                signal = self._fallback_strategy.entry_signal(df, last)
-                if signal == "long":
-                    price = last["close"]
+
+                score = composite_score(df)
+                regime = detect_regime(df)
+                price = float(last["close"])
+
+                # Decisión determinista: ensemble + régimen + ATR
+                signal = None
+                if regime.regime.value in ("trend_up", "ranging") and score["decision"] == "long":
+                    signal = "long"
+                elif regime.regime.value == "trend_down" and score["decision"] == "short":
+                    signal = "short"
+
+                if signal:
                     self.broker.update_price(pair, price)
-                    stake = self.get_available_capital() * 0.2
+                    atr_value = float(last.get("atr", 0.0))
+                    stake = self._position_size(price, atr_value)
                     qty = stake / price if price > 0 else 0
                     if qty > 0:
-                        decisions.append(Decision("buy", pair, qty, 80, "RSI oversold reversion"))
+                        side = "buy" if signal == "long" else "sell"
+                        reasoning = (
+                            f"ensemble={score['score']:.2f} "
+                            f"regime={regime.regime.value} "
+                            f"adx={regime.adx:.0f} conf={score['confidence']:.0f}"
+                        )
+                        decisions.append(Decision(side, pair, qty, 80, reasoning, side=signal))
             except Exception as e:  # noqa: BLE001
                 log.warning("Fallback error %s: %s", pair, e)
 
         return decisions[:self.s.agent.max_trades_per_cycle]
+
+    def _position_size(self, price: float, atr_value: float) -> float:
+        """Sizing por volatilidad (reglas Turtle): riesgo fijo % por ATR."""
+        from ..quant.risk import position_size_atr
+        equity = self.get_available_capital()
+        if atr_value and atr_value > 0 and price > 0:
+            return position_size_atr(
+                self.s.risk, equity, atr_value, price,
+                risk_pct=self.s.risk.risk_per_trade_pct,
+                atr_multiplier=self.s.risk.atr_sl_multiplier,
+                open_trades=len(self.broker.open_positions()),
+            )
+        return equity * self.s.risk.max_position_pct
 
     def get_available_capital(self) -> float:
         return self.broker.get_balance()
@@ -264,8 +316,7 @@ Acciones válidas: buy, sell, hold.
             if stake < 1:
                 log.info("[AGENT] stake too small for %s", d.pair)
                 return
-            sl = price * (1 - self.s.risk.stop_loss_pct)
-            tp = price * (1 + self.s.risk.take_profit_pct)
+            sl, tp = self._stops(d.pair, "long", price)
             pos = self.broker.open_trade(d.pair, "long", stake, price, sl, tp)
             log.info("[AGENT] BUY %s qty=%.4f stake=%.2f conf=%.0f — %s",
                      d.pair, d.quantity, stake, d.confidence, d.reasoning[:60])
@@ -276,6 +327,23 @@ Acciones válidas: buy, sell, hold.
                     self.broker.close_trade(pos.trade_id, price, "agent_signal")
                     log.info("[AGENT] SELL %s — %s", d.pair, d.reasoning[:60])
                     break
+
+    def _stops(self, pair: str, side: str, price: float) -> tuple[float, float]:
+        """Stop-loss/take-profit: dinámicos por ATR si hay datos, si no por pct fijo."""
+        from ..quant.risk import stop_price_atr, take_profit_price_atr
+        atr_value = 0.0
+        try:
+            df = self.market.fetch_ohlcv(pair, self.s.timeframe, 60)
+            atr_value = float(df["atr"].iloc[-1]) if "atr" in df.columns else 0.0
+        except Exception as e:  # noqa: BLE001
+            log.warning("ATR fetch error %s: %s", pair, e)
+        if atr_value and atr_value > 0 and price > 0:
+            sl = stop_price_atr(side, price, atr_value, self.s.risk.atr_sl_multiplier)
+            tp = take_profit_price_atr(side, price, atr_value, self.s.risk.atr_tp_multiplier)
+        else:
+            sl = price * (1 - self.s.risk.stop_loss_pct)
+            tp = price * (1 + self.s.risk.take_profit_pct)
+        return sl, tp
 
     def _log_cycle(self, decisions: list[Decision]) -> None:
         summary = "; ".join(f"{d.action} {d.pair} ({d.confidence:.0f})" for d in decisions)

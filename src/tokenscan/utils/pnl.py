@@ -114,3 +114,68 @@ def kelly_fraction(win_rate: float, avg_win: float, avg_loss: float) -> float:
         return 0.0
     f = (p * b - q) / b
     return max(0.0, min(f * 0.5, 0.25))  # media-Kelly, cap 25%
+
+
+def cagr(initial: float, final: float, days: float) -> float:
+    """Compound Annual Growth Rate: (final/initial)^(365/days) - 1."""
+    if initial <= 0 or days <= 0:
+        return 0.0
+    return (final / initial) ** (365.0 / days) - 1.0
+
+
+def calmar_ratio(cagr_value: float, max_dd_rel: float) -> float:
+    """Calmar ratio: CAGR / max_drawdown (absoluto)."""
+    if max_dd_rel <= 0:
+        return 0.0
+    return cagr_value / max_dd_rel
+
+
+def sqn(trades: list[TradeResult]) -> float:
+    """System Quality Number (Van Tharp): sqrt(n) * mean(pnl) / std(pnl).
+
+    Requiere >= 30 trades para ser estable. Escala:
+    < 1 pobre, 1.6-1.9 regular, 2.0-2.4 promedio, 2.5-2.9 bueno, 3.0-5.0 excelente, >5 excepcional.
+    """
+    if len(trades) < 2:
+        return 0.0
+    pnls = [t.pnl_abs for t in trades]
+    mean = sum(pnls) / len(pnls)
+    var = sum((p - mean) ** 2 for p in pnls) / (len(pnls) - 1)
+    std = math.sqrt(var) if var > 0 else 0.0
+    if std <= 0:
+        return 0.0
+    return math.sqrt(len(pnls)) * mean / std
+
+
+def expectancy(trades: list[TradeResult]) -> float:
+    """Expectancy: (win_rate * avg_win) - (loss_rate * avg_loss).
+
+    Equivalente a mean(pnl) de los trades. Positiva = edge positivo.
+    """
+    if not trades:
+        return 0.0
+    wins = [t.pnl_abs for t in trades if t.pnl_abs > 0]
+    losses = [t.pnl_abs for t in trades if t.pnl_abs < 0]
+    if not wins and not losses:
+        return 0.0
+    win_rate_val = len(wins) / len(trades) if trades else 0.0
+    loss_rate_val = len(losses) / len(trades) if trades else 0.0
+    avg_win = sum(wins) / len(wins) if wins else 0.0
+    avg_loss = abs(sum(losses)) / len(losses) if losses else 0.0
+    return (win_rate_val * avg_win) - (loss_rate_val * avg_loss)
+
+
+def win_loss_streaks(trades: list[TradeResult]) -> dict:
+    """Máximas rachas de ganancias y pérdidas consecutivas."""
+    max_win_streak = max_loss_streak = 0
+    current_win = current_loss = 0
+    for t in trades:
+        if t.pnl_abs > 0:
+            current_win += 1
+            current_loss = 0
+            max_win_streak = max(max_win_streak, current_win)
+        else:
+            current_loss += 1
+            current_win = 0
+            max_loss_streak = max(max_loss_streak, current_loss)
+    return {"max_win_streak": max_win_streak, "max_loss_streak": max_loss_streak}
