@@ -63,9 +63,14 @@ class LLMAgent:
         return self.client is not None
 
     def run_cycle(self) -> list[Decision]:
-        """Ciclo principal: recopila datos, decide, ejecuta, memoriza."""
+        """Ciclo principal: recopila datos, evalúa SL/TP, decide, ejecuta, memoriza."""
         self._cycle += 1
         log.info("=== Ciclo agente #%d ===", self._cycle)
+
+        prices = self._refresh_prices()
+        exits = self.broker.check_exits(prices)
+        for e in exits:
+            log.info("[AGENT] Salida automática: %s — pnl=%.4f", e.get("exit_reason", "?"), e.get("pnl_abs", 0))
 
         if self.available:
             decisions = self._llm_decide()
@@ -92,6 +97,19 @@ class LLMAgent:
         except Exception as e:  # noqa: BLE001
             log.warning("LLM error: %s — fallback determinista", e)
             return self._deterministic_decide()
+
+    def _refresh_prices(self) -> dict[str, float]:
+        """Actualiza precios en el broker y devuelve {pair: precio}."""
+        prices: dict[str, float] = {}
+        for pair in self.s.trading_pairs:
+            try:
+                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 2)
+                price = float(df.iloc[-1]["close"])
+                prices[pair] = price
+                self.broker.update_price(pair, price)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Error fetching %s: %s", pair, e)
+        return prices
 
     def _build_context(self) -> dict:
         prices: dict[str, float] = {}
