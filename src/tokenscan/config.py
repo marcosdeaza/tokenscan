@@ -34,12 +34,13 @@ class RiskConfig(BaseModel):
 
 
 class StrategyConfig(BaseModel):
-    name: str = "rsi_reversion"
+    name: str = "macro_gate"
     rsi_period: int = 14
     rsi_oversold: float = 30
     rsi_overbought: float = 70
     ema_fast: int = 12
     ema_slow: int = 26
+    ema_macro: int = 150
 
 
 class AgentConfig(BaseModel):
@@ -99,8 +100,8 @@ class Settings(BaseModel):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     llm_api_key: str = ""
-    llm_base_url: str = "https://api.deepseek.com/v1"
-    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://api.b.ai/v1"
+    llm_model: str = "deepseek-v4-flash"
     exchange_name: str = "binance"
     exchange_api_key: str = ""
     exchange_api_secret: str = ""
@@ -122,8 +123,8 @@ class Settings(BaseModel):
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
             "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
             "llm_api_key": os.getenv("LLM_API_KEY", ""),
-            "llm_base_url": os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1"),
-            "llm_model": os.getenv("LLM_MODEL", "deepseek-chat"),
+            "llm_base_url": os.getenv("LLM_BASE_URL", "https://api.b.ai/v1"),
+            "llm_model": os.getenv("LLM_MODEL", "deepseek-v4-flash"),
             "exchange_name": os.getenv("EXCHANGE_NAME", "binance"),
             "exchange_api_key": os.getenv("EXCHANGE_API_KEY", ""),
             "exchange_api_secret": os.getenv("EXCHANGE_API_SECRET", ""),

@@ -37,7 +37,7 @@ def test_nested_yaml_defaults_preserved():
     s = Settings(mode="paper")
     assert s.risk.max_position_pct == 0.20
     assert s.agent.chain_enabled is False
-    assert s.strategy.name == "rsi_reversion"
+    assert s.strategy.name == "macro_gate"
 
 
 def test_secrets_overrides_yaml():

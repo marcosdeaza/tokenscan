@@ -3,9 +3,9 @@
 ![TokenScan](assets/hero.png)
 
 Agente de trading de criptomonedas con interfaz de Telegram. Paper trading por
-defecto, backtesting, y un modelo de lenguaje configurable (DeepSeek por defecto)
-que decide operaciones sobre indicadores técnicos y datos de mercado — con un
-fallback determinista (RSI) cuando no hay API key configurada.
+defecto, backtesting, y un modelo de lenguaje configurable (B.AI / DeepSeek V4 Flash
+por defecto) que decide operaciones sobre indicadores técnicos y datos de mercado —
+con un fallback determinista (macro_gate) cuando no hay API key configurada.
 
 Código original bajo MIT. Las fórmulas y métricas son estándar del análisis
 técnico y la gestión de riesgo (ver [docs/formulas.md](docs/formulas.md)).
@@ -144,18 +144,18 @@ Consulta dirección y saldos reales en cualquier momento con `/wallet_onchain`.
 
 ## Configurar la IA
 
-TokenScan usa **DeepSeek** por defecto (API compatible con OpenAI, económica).
-Configura en `.env`:
+TokenScan usa **B.AI con DeepSeek V4 Flash** por defecto (API compatible con
+OpenAI, rápida y económica). Configura en `.env`:
 
 ```ini
 LLM_API_KEY=tu-clave
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.b.ai/v1
+LLM_MODEL=deepseek-v4-flash
 ```
 
 Cualquier proveedor con API compatible con OpenAI funciona: cambia
 `LLM_BASE_URL` y `LLM_MODEL` (OpenRouter, Groq, etc.). Sin API key, el agente usa
-la estrategia determinista RSI.
+la estrategia determinista `macro_gate`.
 
 ---
 

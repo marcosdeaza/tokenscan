@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+import pandas as pd
+
 from ..config import Settings
 from ..data.market import MarketData, NewsFeed, OnChainData
 from ..execution.paper import PaperBroker
-from ..quant.strategies import get_strategy
+from ..quant.strategies import MacroGate, get_strategy
 from ..storage.db import Database
 from ..utils.logger import setup_logger
 from ..utils.notifier import TelegramNotifier
@@ -48,12 +50,19 @@ class LLMAgent:
         self._client = None
         self._cycle = 0
         self.notifier = TelegramNotifier(settings)
-        self._fallback_strategy = get_strategy(
-            settings.strategy.name,
-            rsi_period=settings.strategy.rsi_period,
-            oversold=settings.strategy.rsi_oversold,
-            overbought=settings.strategy.rsi_overbought,
-        )
+        name = settings.strategy.name
+        kwargs: dict = {}
+        if name == "rsi_reversion":
+            kwargs = {
+                "rsi_period": settings.strategy.rsi_period,
+                "oversold": settings.strategy.rsi_oversold,
+                "overbought": settings.strategy.rsi_overbought,
+            }
+        elif name in ("trend_following", "macro_gate"):
+            kwargs = {"fast": settings.strategy.ema_fast, "slow": settings.strategy.ema_slow}
+            if name == "macro_gate":
+                kwargs["ema_macro"] = settings.strategy.ema_macro
+        self._fallback_strategy = get_strategy(name, **kwargs)
 
     @property
     def client(self):
@@ -75,12 +84,28 @@ class LLMAgent:
             return [p for p in self.s.trading_pairs if p in LIVE_PAIRS]
         return list(self.s.trading_pairs)
 
+    def _inject_macro_daily(self) -> None:
+        """Inyecta el histórico diario completo en la estrategia para que el gate
+        macro (EMA diaria) sea real: se computa sobre velas 1d, no resampleadas."""
+        if not isinstance(self._fallback_strategy, MacroGate):
+            return
+        macro_daily: dict[str, pd.Series] = {}
+        for pair in self._supported_pairs():
+            try:
+                df = self.market.fetch_ohlcv(pair, "1d", 500)
+                macro_daily[pair] = df["close"]
+            except Exception as e:  # noqa: BLE001
+                log.warning("Macro daily %s: %s", pair, e)
+        if macro_daily:
+            self._fallback_strategy.macro_daily = macro_daily
+
     def run_cycle(self) -> list[Decision]:
         """Ciclo principal: recopila datos, evalúa SL/TP, decide, ejecuta, memoriza."""
         self._cycle += 1
         log.info("=== Ciclo agente #%d ===", self._cycle)
 
         self._auto_fund_if_live()
+        self._inject_macro_daily()
 
         prices = self._refresh_prices()
         exits = self.broker.check_exits(prices)
@@ -93,6 +118,8 @@ class LLMAgent:
                     e.get("signature"),
                 )
 
+        self._gate_exit()
+
         if self._risk_gate_blocks_new_trades():
             log.info("[AGENT] Risk gate activo: no se abren nuevas posiciones (solo gestión de las abiertas).")
             decisions: list[Decision] = []
@@ -101,6 +128,8 @@ class LLMAgent:
         else:
             log.info("Sin LLM: usando fallback determinista (%s)", self._fallback_strategy.name)
             decisions = self._deterministic_decide()
+
+        decisions = self._apply_gate_veto(decisions)
 
         for d in decisions:
             try:
@@ -183,10 +212,13 @@ class LLMAgent:
                 df = self._fallback_strategy.compute_indicators(df)
                 last = df.iloc[-1]
                 prices[pair] = last["close"]
+                entry = self._fallback_strategy.entry_signal(df, last)
+                entry_signal = entry if entry else "none"
                 signals[pair] = {
                     "rsi": round(last.get("rsi", 50), 1),
                     "ema_fast": round(last.get("ema_fast", 0), 2),
                     "ema_slow": round(last.get("ema_slow", 0), 2),
+                    "ema_macro": round(last.get("ema_macro", 0), 2),
                     "macd_hist": round(last.get("macd_hist", 0), 4),
                     "atr": round(last.get("atr", 0), 4),
                     "volatility": round(last.get("vol_ann", 0), 4),
@@ -196,6 +228,7 @@ class LLMAgent:
                     "stoch_k": round(last.get("stoch_k", 50), 1),
                     "roc": round(last.get("roc", 0), 4),
                     "vol_ratio": round(last.get("vol_ratio", 1), 2),
+                    "macro_gate": entry_signal,
                 }
                 from ..quant.regime import detect_regime
                 from ..quant.scorer import composite_score
@@ -250,6 +283,12 @@ Datos on-chain: {json.dumps(ctx['onchain'], indent=2 if ctx['onchain'] else '')}
 REGLAS:
 - Solo puedes comprar si tienes efectivo disponible.
 - Solo puedes vender si tienes posición abierta en ese par.
+- EL GATE MACRO ES LA LEY: el campo 'macro_gate' en Señales dice 'long' o 'none'.
+  NUNCA compres si dice 'none' (el precio está por debajo de su EMA diaria larga o
+  sin tendencia). Es el filtro de régimen validado en backtest: en bear market no se
+  compra, y en tendencia se aguanta la posición.
+- Con posición abierta en tendencia alcista (macro_gate='long'), aguanta el hold:
+  no vendas por nervios ni por pequeñas caídas. Deja correr el crecimiento.
 - Tamaño de posición: {sizing_rule}.
 - Riesgo máximo por operación: 1% del capital (sizing por volatilidad/ATR).
 - Respeta el régimen: en 'trend_up' prioriza compras, en 'trend_down' evita comprar,
@@ -309,45 +348,95 @@ Acciones válidas: buy, sell, hold.
 
     # ── Deterministic fallback ────────────────────────────────
 
+    def _gate_verdict(self, pair: str) -> tuple[str, float]:
+        """Veredicto del gate macro para un par: (signal|none, ema_macro)."""
+        try:
+            df = self.market.fetch_ohlcv(pair, self.s.timeframe, 200)
+            df = self._fallback_strategy.compute_indicators(df)
+            last = df.iloc[-1]
+            sig = self._fallback_strategy.entry_signal(df, last)
+            return (sig or "none", float(last.get("ema_macro", 0) or 0))
+        except Exception as e:  # noqa: BLE001
+            log.warning("Gate verdict %s: %s", pair, e)
+            return "none", 0.0
+
+    def _gate_exit(self) -> None:
+        """Cierra posiciones cuya señal de salida del gate macro se activó.
+
+        En el backtest el gate sale cuando el precio cruza por debajo de su EMA
+        diaria o la tendencia se debilita. En live, sin esto, el bot solo
+        dependería del SL/TP automático y se quedaría dentro de la caída.
+        """
+        if not isinstance(self._fallback_strategy, MacroGate):
+            return
+        open_positions = self.broker.open_positions()
+        for pos in open_positions:
+            pair = pos["pair"]
+            try:
+                df = self.market.fetch_ohlcv(pair, self.s.timeframe, 200)
+                df = self._fallback_strategy.compute_indicators(df)
+                last = df.iloc[-1]
+                if self._fallback_strategy.exit_signal(df, last, "long"):
+                    price = float(last["close"])
+                    self.broker.update_price(pair, price)
+                    self.broker.close_trade(pos["id"], price, "macro_gate_exit")
+                    log.info("[GATE] Salida %s: tendencia agotada (macro_gate_exit)", pair)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Gate exit %s: %s", pair, e)
+
+    def _apply_gate_veto(self, decisions: list[Decision]) -> list[Decision]:
+        """Veto duro del gate macro (la estrategia validada es la ley).
+
+        - Compra: solo si el gate dice 'long' (precio > EMA diaria + tendencia).
+        - Venta: no se vende mientras la posición siga en tendencia alcista
+          (hold: dejar correr los ganadores). El SL/TP automático ya gestiona el riesgo.
+        """
+        if not isinstance(self._fallback_strategy, MacroGate):
+            return decisions
+        out: list[Decision] = []
+        for d in decisions:
+            if d.action == "buy":
+                sig, _ = self._gate_verdict(d.pair)
+                if sig != "long":
+                    log.info("[GATE] Veto compra %s: gate=%s", d.pair, sig)
+                    continue
+            elif d.action == "sell":
+                pos = next((p for p in self.broker.open_positions() if p["pair"] == d.pair), None)
+                if pos:
+                    px = self.broker.price(d.pair)
+                    pnl = (px / float(pos["open_price"]) - 1) if px and pos.get("open_price") else 0.0
+                    if pnl > 0:
+                        sig, _ = self._gate_verdict(d.pair)
+                        if sig == "long":
+                            log.info("[GATE] Hold %s: en tendencia alcista, no se corta el ganador", d.pair)
+                            continue
+            out.append(d)
+        return out
+
     def _deterministic_decide(self) -> list[Decision]:
         decisions: list[Decision] = []
         open_pairs = {p["pair"] for p in self.broker.open_positions()}
-
-        from ..quant.regime import detect_regime
-        from ..quant.scorer import composite_score
 
         for pair in self._supported_pairs():
             if pair in open_pairs:
                 continue
             try:
+                sig, ema = self._gate_verdict(pair)
+                if sig != "long":
+                    continue
                 df = self.market.fetch_ohlcv(pair, self.s.timeframe, 200)
-                df = self._fallback_strategy.compute_indicators(df)
                 last = df.iloc[-1]
-
-                score = composite_score(df)
-                regime = detect_regime(df)
                 price = float(last["close"])
-
-                # Decisión determinista: ensemble + régimen + ATR
-                signal = None
-                if regime.regime.value in ("trend_up", "ranging") and score["decision"] == "long":
-                    signal = "long"
-                elif regime.regime.value == "trend_down" and score["decision"] == "short":
-                    signal = "short"
-
-                if signal:
-                    self.broker.update_price(pair, price)
-                    atr_value = float(last.get("atr", 0.0))
-                    stake = self._position_size(price, atr_value)
-                    qty = stake / price if price > 0 else 0
-                    if qty > 0:
-                        side = "buy" if signal == "long" else "sell"
-                        reasoning = (
-                            f"ensemble={score['score']:.2f} "
-                            f"regime={regime.regime.value} "
-                            f"adx={regime.adx:.0f} conf={score['confidence']:.0f}"
-                        )
-                        decisions.append(Decision(side, pair, qty, 80, reasoning, side=signal))
+                atr_value = float(last.get("atr", 0.0))
+                self.broker.update_price(pair, price)
+                stake = self._position_size(price, atr_value)
+                qty = stake / price if price > 0 else 0
+                if qty > 0:
+                    decisions.append(Decision(
+                        "buy", pair, qty, 85,
+                        f"macro_gate long, ema_macro={ema:.2f}",
+                        side="long",
+                    ))
             except Exception as e:  # noqa: BLE001
                 log.warning("Fallback error %s: %s", pair, e)
 
