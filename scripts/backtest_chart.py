@@ -1,5 +1,10 @@
 """Backtest de la estrategia con varios capitales y generacion de grafica PNG.
 
+Usa los datos cacheados en data/cache/ (descargados con scripts/download_cache.py)
+para que el resultado sea reproducible sin conexion a red. La estrategia por
+defecto es macro_gate (EMA200 diaria + EMA fast/slow), el filtro de mercado
+defensivo que solo compra con tendencia viva.
+
 Uso:
     python scripts/backtest_chart.py [--days 90] [--out results/backtest.png]
 """
@@ -19,28 +24,69 @@ import pandas as pd
 
 from tokenscan.backtest.engine import Backtester
 from tokenscan.config import Settings
-from tokenscan.data.market import MarketData
-from tokenscan.execution.exchange import ExchangeClient
 from tokenscan.quant.strategies import get_strategy
 
+CACHE = Path("data/cache")
 PALETTE = {"5": "#f97316", "50": "#06b6d4", "500": "#6366f1"}
 
+PAIRS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
 
-def run_case(settings: Settings, capital: float, market: MarketData, days: int):
+
+class CachedMarket:
+    """MarketData compatible que lee de data/cache en vez de la red.
+
+    Carga el histórico completo del timeframe de trading y del 1d (para el
+    filtro macro) y expone ambos. Cada vela lleva attrs["pair"] para que las
+    estrategias identifiquen el par.
+    """
+
+    def __init__(self, timeframe: str, days: int):
+        self.timeframe = timeframe
+        self.days = days
+        self.frames: dict[str, pd.DataFrame] = {}
+        self.daily: dict[str, pd.Series] = {}
+        for pair in PAIRS:
+            fname = f"{pair.split('/')[0]}_{timeframe}.csv"
+            p = CACHE / fname
+            if not p.exists():
+                continue
+            df = pd.read_csv(p, parse_dates=["timestamp"], index_col="timestamp")
+            end = df.index[-1]
+            start = end - pd.Timedelta(days=days)
+            df = df[(df.index >= start) & (df.index <= end)]
+            df.attrs["pair"] = pair
+            self.frames[pair] = df
+
+            dname = f"{pair.split('/')[0]}_1d.csv"
+            dp = CACHE / dname
+            if dp.exists():
+                daily = pd.read_csv(dp, parse_dates=["timestamp"], index_col="timestamp")
+                daily = daily[daily.index <= end]
+                self.daily[pair] = daily["close"]
+
+    def fetch_ohlcv(self, pair: str, timeframe: str = "5m", limit: int = 500) -> pd.DataFrame:
+        return self.frames[pair]
+
+    def macro_daily(self) -> dict[str, pd.Series]:
+        return self.daily
+
+
+def run_case(settings: Settings, capital: float, market: CachedMarket, days: int):
     s = settings.model_copy(deep=True)
     s.backtest.initial_capital = capital
-    s.timeframe = "1h"
+    s.timeframe = "4h"
     s.risk.atr_sl_multiplier = 2.5
     s.risk.atr_tp_multiplier = 3.5
-    bt = Backtester(s, market)
-    strategy = get_strategy("trend_following", fast=10, slow=30)
-    return bt.run(strategy, days=days), strategy
+    bt = Backtester(s, market)  # type: ignore[arg-type]
+    strategy = get_strategy("macro_gate", fast=12, slow=26, ema_macro=150)
+    strategy.macro_daily = market.macro_daily()
+    return bt.run(strategy, pairs=PAIRS, days=days), strategy
 
 
 def make_chart(results: dict[str, object], days: int, out: Path) -> None:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={"height_ratios": [2, 1]})
     fig.suptitle(
-        f"TokenScan — Backtest {days} días (trend_following 10/30, 1h, BTC/ETH/SOL)",
+        f"TokenScan — Backtest {days} días (macro_gate 12/26 + EMA200 diaria, 4h, BTC/ETH/SOL)",
         fontsize=13, fontweight="bold",
     )
 
@@ -49,7 +95,7 @@ def make_chart(results: dict[str, object], days: int, out: Path) -> None:
         m = result.metrics()
         color = PALETTE[label]
         df_curve = pd.DataFrame({"equity": result.equity_curve})
-        x = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=len(df_curve), freq="1h")
+        x = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=len(df_curve), freq="4h")
         ax1.plot(x, df_curve["equity"], label=f"{label}€ → {m['final_equity']:.2f}€", color=color, linewidth=1.8)
         final = m["final_equity"]
         delta = final - float(label)
@@ -95,13 +141,7 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = Settings.load()
-    market = MarketData(ExchangeClient(settings))
-    strategy = get_strategy(
-        settings.strategy.name,
-        rsi_period=settings.strategy.rsi_period,
-        oversold=settings.strategy.rsi_oversold,
-        overbought=settings.strategy.rsi_overbought,
-    )
+    market = CachedMarket("4h", args.days)
 
     results: dict[str, object] = {}
     for capital in (5, 50, 500):

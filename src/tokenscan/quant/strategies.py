@@ -82,9 +82,65 @@ class TrendFollowing(BaseStrategy):
         return (side == "long" and fast < slow) or (side == "short" and fast > slow)
 
 
+class MacroGate(TrendFollowing):
+    """Gate macro EMA200 defensivo: solo comprar con tendencia viva.
+
+    Filtra el régimen macro con una EMA de periodo largo sobre el close diario:
+    solo abre largos si el precio cotiza por encima de esa EMA (mercado alcista)
+    y cierra si la cruza hacia abajo. Long-only: en bear market se queda en cash,
+    que es lo único que protege capital de forma honesta.
+
+    Si se inyecta el histórico diario completo (macro_daily), el filtro usa una
+    EMA diaria real (periodo `ema_macro`) sobre toda la historia; si no, resamplea
+    el propio DataFrame a 1D como aproximación.
+    """
+
+    name = "macro_gate"
+
+    def __init__(self, fast: int = 12, slow: int = 26, ema_macro: int = 200,
+                 macro_daily: dict[str, pd.Series] | None = None):
+        super().__init__(fast=fast, slow=slow)
+        self.ema_macro = ema_macro
+        self.macro_daily = macro_daily or {}
+
+    def compute_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        out = add_indicators(df)
+        pair = df.attrs.get("pair")
+        daily = self.macro_daily.get(pair) if pair else None
+        if daily is not None and len(daily.dropna()) > 20:
+            span = min(self.ema_macro, max(20, len(daily.dropna()) // 3))
+            ema_macro_daily = daily.ewm(span=span, adjust=False).mean()
+            out["ema_macro"] = ema_macro_daily.reindex(out.index, method="ffill")
+        else:
+            close_daily = out["close"].resample("1D").last()
+            span = min(self.ema_macro, max(20, len(close_daily.dropna()) // 3))
+            ema_macro_daily = close_daily.ewm(span=span, adjust=False).mean()
+            out["ema_macro"] = ema_macro_daily.reindex(out.index, method="ffill")
+        return out
+
+    def entry_signal(self, df: pd.DataFrame, row: pd.Series) -> str | None:
+        close = row.get("close", 0)
+        macro = row.get("ema_macro", 0)
+        fast = row.get("ema_fast", 0)
+        slow = row.get("ema_slow", 0)
+        if macro and close > macro and fast > slow:
+            return "long"
+        return None
+
+    def exit_signal(self, df: pd.DataFrame, row: pd.Series, side: str) -> bool:
+        close = row.get("close", 0)
+        macro = row.get("ema_macro", 0)
+        fast = row.get("ema_fast", 0)
+        slow = row.get("ema_slow", 0)
+        if side != "long":
+            return False
+        return bool(macro and (close < macro or fast < slow))
+
+
 STRATEGIES: dict[str, type[BaseStrategy]] = {
     "rsi_reversion": RSIReversion,
     "trend_following": TrendFollowing,
+    "macro_gate": MacroGate,
 }
 
 

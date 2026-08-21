@@ -18,16 +18,16 @@ trading_pairs:
 
 # --- Estrategia por defecto (usada si no hay LLM configurado) ---
 strategy:
-  name: rsi_reversion
-  rsi_period: 14
-  rsi_oversold: 30
-  rsi_overbought: 70
+  name: macro_gate
   ema_fast: 12
   ema_slow: 26
+  ema_macro: 150          # EMA diaria del gate macro (solo long si precio > EMA)
+  atr_sl_multiplier: 2.5
+  atr_tp_multiplier: 3.5
 
 # --- Gestión de riesgo ---
 risk:
-  max_position_pct: 0.20      # máximo 20% del capital por posición
+  max_position_pct: 0.90      # tier micro: usa ~90% del capital por operación
   stop_loss_pct: 0.05         # stop-loss 5% (fallback si no hay ATR)
   take_profit_pct: 0.10       # take-profit 10% (fallback si no hay ATR)
   trailing_stop_pct: 0.03     # trailing stop 3% tras alcanzar +4%
@@ -36,8 +36,8 @@ risk:
   max_daily_loss_pct: 0.10    # frenar en seco si pierdes 10% en el día
   cooldown_minutes: 15        # pausa tras un stop-loss
   risk_per_trade_pct: 0.01    # riesgo 1% del capital por operación (regla Turtle)
-  atr_sl_multiplier: 2.0      # stop-loss a 2 ATR del precio de entrada
-  atr_tp_multiplier: 3.0      # take-profit a 3 ATR del precio de entrada
+  atr_sl_multiplier: 2.5      # stop-loss a 2.5 ATR del precio de entrada
+  atr_tp_multiplier: 3.5      # take-profit a 3.5 ATR del precio de entrada
   vol_target_annual: 0.15     # objetivo de volatilidad anual para vol targeting
   vol_max_leverage: 1.0       # palanca máxima permitida (1.0 = sin apalancar)
 

@@ -26,6 +26,10 @@ backtest_results/
 # Resultados de trading — dejar solo lo que se quiera publicar en results/
 results/*.csv
 results/*.png
+results/backtest_test.png
+results/sweep_*.json
+results/test_macro.json
+results/sweep.json
 !results/.gitkeep
 
 # Logs

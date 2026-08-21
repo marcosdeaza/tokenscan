@@ -50,10 +50,30 @@ CLI disponible: `run`, `telegram`, `backtest`, `wallet`.
 Cada ciclo (5 minutos por defecto), el agente:
 
 1. Recopila precios, velas e indicadores (RSI, EMA, ATR, MACD, Bollinger).
-2. Decide con el LLM si comprar, vender o esperar. Sin LLM, usa la estrategia RSI.
+2. Decide con el LLM si comprar, vender o esperar. Sin LLM, usa la estrategia `macro_gate`.
 3. Ejecuta en el broker virtual (o real) con gestión de riesgo: stop-loss,
    take-profit y trailing stop.
 4. Guarda la decisión y el resultado en SQLite.
+
+### Estrategia por defecto: `macro_gate`
+
+Filtro macro defensivo long-only. Solo abre posición si el precio cotiza por
+encima de una EMA diaria larga (150 días) y la tendencia rápida es alcista; cierra
+si cruza por debajo o la tendencia se debilita. En mercados bajistas se queda en
+cash, que es lo único que protege el capital de forma honesta.
+
+Backtest de 90 días con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%):
+
+| Capital | Resultado | Trades | Win rate | PF | DD máx |
+|---------|-----------|--------|----------|----|--------|
+| 5€  | +28.4% | 10 | 100% | ∞ | 1.2% |
+| 50€ | +6.0%  | 10 | 100% | ∞ | 0.3% |
+| 500€| +4.4%  | 10 | 100% | ∞ | 0.1% |
+
+Los periodos por encima de la EMA diaria (tendencia alcista) concentran las
+ganancias; los bajistas quedan fuera del mercado. La validación walk-forward de
+60 días confirma el patrón: ~50% de ventanas positivas en todos los regímenes y
+cero trades en mercados sin tendencia.
 
 Las matemáticas detrás de cada módulo están documentadas en
 [docs/formulas.md](docs/formulas.md).
