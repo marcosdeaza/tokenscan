@@ -21,7 +21,7 @@ strategy:
   name: macro_gate
   ema_fast: 12
   ema_slow: 26
-  ema_macro: 150          # EMA diaria del gate macro (solo long si precio > EMA)
+  ema_macro: 140          # EMA diaria del gate macro (solo long si precio > EMA)
 
 # --- Gestión de riesgo ---
 risk:
@@ -34,7 +34,7 @@ risk:
   max_daily_loss_pct: 0.10    # frenar en seco si pierdes 10% en el día
   cooldown_minutes: 15        # pausa tras un stop-loss
   risk_per_trade_pct: 0.01    # riesgo 1% del capital por operación (regla Turtle)
-  atr_sl_multiplier: 2.5      # stop-loss a 2.5 ATR del precio de entrada
+  atr_sl_multiplier: 2.0      # stop-loss a 2.0 ATR del precio de entrada
   atr_tp_multiplier: 4.0      # take-profit amplio: deja correr los ganadores
   vol_target_annual: 0.15     # objetivo de volatilidad anual para vol targeting
   vol_max_leverage: 1.0       # palanca máxima permitida (1.0 = sin apalancar)

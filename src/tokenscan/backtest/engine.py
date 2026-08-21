@@ -99,7 +99,7 @@ class Backtester:
         self.slippage = settings.backtest.slippage_pct / 100.0
 
     def run(self, strategy: BaseStrategy, pairs: list[str] | None = None,
-            days: int | None = None) -> BacktestResult:
+            days: int | None = None, end_dt: datetime | None = None) -> BacktestResult:
         pairs = pairs or self.s.trading_pairs
         days = days or self.s.backtest.days
         capital = self.s.backtest.initial_capital
@@ -107,8 +107,9 @@ class Backtester:
         trades: list[BacktestTrade] = []
         curve = [capital]
 
-        # Cargamos todas las velas de cada par en el rango
-        end = datetime.now(timezone.utc).replace(tzinfo=None)
+        # Cargamos todas las velas de cada par en el rango. end_dt permite
+        # walk-forward histórico (ventanas pasadas) en lugar de anclar en now.
+        end = (end_dt or datetime.now(timezone.utc).replace(tzinfo=None))
         start = end - timedelta(days=days)
         frames: dict[str, pd.DataFrame] = {}
         for pair in pairs:

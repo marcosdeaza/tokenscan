@@ -76,11 +76,11 @@ def run_case(settings: Settings, capital: float, market: CachedMarket, days: int
     s.backtest.initial_capital = capital
     s.timeframe = "4h"
     s.jupiter.tier = "micro"
-    s.risk.atr_sl_multiplier = 2.5
+    s.risk.atr_sl_multiplier = 2.0
     s.risk.atr_tp_multiplier = 4.0
     s.risk.trailing_stop_pct = 0.0
     bt = Backtester(s, market)  # type: ignore[arg-type]
-    strategy = get_strategy("macro_gate", fast=12, slow=26, ema_macro=150)
+    strategy = get_strategy("macro_gate", fast=12, slow=26, ema_macro=140)
     strategy.macro_daily = market.macro_daily()
     return bt.run(strategy, pairs=PAIRS, days=days), strategy
 
@@ -88,7 +88,7 @@ def run_case(settings: Settings, capital: float, market: CachedMarket, days: int
 def make_chart(results: dict[str, object], days: int, out: Path) -> None:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={"height_ratios": [2, 1]})
     fig.suptitle(
-        f"TokenScan — Backtest {days} días (macro_gate 12/26 + EMA150 diaria, 4h, BTC/ETH/SOL)",
+        f"TokenScan — Backtest {days} días (macro_gate 12/26 + EMA140 diaria, 4h, BTC/ETH/SOL)",
         fontsize=13, fontweight="bold",
     )
 

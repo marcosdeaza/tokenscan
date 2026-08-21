@@ -67,31 +67,39 @@ asesora, la matemática ejecuta):
 ### Estrategia por defecto: `macro_gate`
 
 Filtro macro defensivo long-only. Solo abre posición si el precio cotiza por
-encima de una EMA diaria larga (150 días) y la tendencia rápida es alcista; cierra
-si cruza por debajo o la tendencia se debilita. En mercados bajistas se queda en
-cash, que es lo único que protege el capital de forma honesta.
+encima de una EMA diaria larga (**140 días**) y la tendencia rápida es alcista;
+cierra si cruza por debajo o la tendencia se debilita. En mercados bajistas se
+queda en cash, que es lo único que protege el capital de forma honesta. El
+sizing es por vol-targeting determinista (independiente del capital).
 
-Backtest de 90 días con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%):
+Backtest con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%):
 
-| Capital | Resultado | Trades | Win rate | PF | DD máx |
-|---------|-----------|--------|----------|----|--------|
-| 5€  | +30.3% | 8 | 100% | ∞ | 1.2% |
-| 50€ | +30.3% | 8 | 100% | ∞ | 1.2% |
-| 500€| +30.3% | 8 | 100% | ∞ | 1.2% |
+| Horizonte | Resultado | Trades | Win rate | PF | DD máx | Sharpe | DSR |
+|-----------|-----------|--------|----------|----|--------|--------|-----|
+| 90 días   | +34.5%    | 9      | 100%     | ∞  | 1.17%  | 2.02   | 0.813 |
+| 250 días  | +20.2%    | 20     | 50%      | 2.48 | 10.76% | 0.67   | 0.987 |
+
+Resultados reproducibles en `results/final_config.json` (config óptima:
+`ema_macro=140`, `atr_sl_multiplier=2.0`, `atr_tp_multiplier=4.0`, encontrada con
+`scripts/optimize_macro.py` sobre el motor real de backtest).
 
 El gate deja **correr los ganadores**: el TP amplio (4 ATR) y sin trailing hacen
 que el bot mantenga el hold mientras la tendencia vive y cobre al tocar techo o
-cuando el precio cruza su EMA diaria. Los 8 trades de los últimos 90 días
-maduraron todos en positivo (+4.4% a +7.4%).
+cuando el precio cruza su EMA diaria. Los 9 trades de los últimos 90 días
+maduraron todos en positivo.
 
 Los periodos por encima de la EMA diaria (tendencia alcista) concentran las
-ganancias; los bajistas quedan fuera del mercado. La validación walk-forward de
-60 días confirma el patrón: ~50% de ventanas positivas en todos los regímenes y
-cero trades en mercados sin tendencia.
+ganancias; los bajistas quedan fuera del mercado.
 
-**Validación anti-overfitting (Deflated Sharpe Ratio):** DSR = 0.996. La
-probabilidad de que este resultado sea producto del azar (probar muchas configs
-hasta acertar) es solo del 0.4%. Ver `scripts/dsr.py`:
+**Validación anti-overfitting.** Dos capas:
+
+1. **DSR (Deflated Sharpe Ratio):** 0.987 a 250d y 0.813 a 90d. El DSR descuenta
+   el "fishing": probar muchas configs hasta acertar. Ver `scripts/dsr.py`.
+2. **Walk-forward honesto** (`scripts/walkforward.py`, 2.6 años, ventanas de 90
+   días con paso de 45): **9 de 21 ventanas positivas (43%)** y retorno mediano
+   negativo. Es la realidad: la estrategia captura los rallies alcistas y sufre
+   en sideways/bajistas. El +34.5% de 90d se concentra en el rally reciente — por
+   eso arranca en modo paper y con gestión de riesgo estricta.
 
 > La estrategia **no corta a los ganadores**: usa un take-profit amplio (4 ATR)
 > y sin trailing stop, de modo que mantiene la posición mientras el mercado
@@ -100,7 +108,9 @@ hasta acertar) es solo del 0.4%. Ver `scripts/dsr.py`:
 Las matemáticas detrás de cada módulo están documentadas en
 [docs/formulas.md](docs/formulas.md).
 
-![Backtest 5/50/500€](results/backtest.png)
+![Backtest 90 días](results/backtest.png)
+
+![Backtest 250 días](results/backtest_250d.png)
 
 ---
 
