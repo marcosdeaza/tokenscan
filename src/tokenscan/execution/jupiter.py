@@ -168,8 +168,9 @@ class JupiterClient:
 
         tx_bytes = base64.b64decode(tx_b64)
         tx = VersionedTransaction.from_bytes(tx_bytes)
-        sig = self._keypair.sign_message(bytes(tx.message.hash()))
-        signed = VersionedTransaction.populate(tx.message, [sig])
+        msg = tx.message
+        sig = self._keypair.sign_message(b"\x80" + bytes(msg))
+        signed = VersionedTransaction.populate(msg, [sig])
         raw = base64.b64encode(bytes(signed)).decode()
 
         res = self._rpc("sendTransaction", [raw, {"encoding": "base64", "preflightCommitment": "confirmed"}])
