@@ -80,6 +80,8 @@ class LLMAgent:
         self._cycle += 1
         log.info("=== Ciclo agente #%d ===", self._cycle)
 
+        self._auto_fund_if_live()
+
         prices = self._refresh_prices()
         exits = self.broker.check_exits(prices)
         for e in exits:
@@ -119,6 +121,22 @@ class LLMAgent:
         except Exception as e:  # noqa: BLE001
             log.warning("LLM error: %s — fallback determinista", e)
             return self._deterministic_decide()
+
+    def _auto_fund_if_live(self) -> None:
+        """En modo live convierte el SOL sobrante a USDC cada ciclo (autónomo).
+
+        El auto-fund solo se dispara al arrancar o al abrir operación; si el
+        agente decide hold, nunca se ejecutaba y el SOL quedaba parado.
+        Al correrlo en cada ciclo, en cuanto llegue SOL se convierte solo.
+        """
+        if self.s.mode != "live":
+            return
+        try:
+            from ..execution.live import LiveBroker
+            if isinstance(self.broker, LiveBroker):
+                self.broker._auto_fund()
+        except Exception as e:  # noqa: BLE001
+            log.warning("[AGENT] Auto-fund en ciclo falló: %s", e)
 
     def _refresh_prices(self) -> dict[str, float]:
         """Actualiza precios en el broker y devuelve {pair: precio}."""
