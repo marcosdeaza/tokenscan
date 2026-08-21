@@ -119,6 +119,9 @@ class LLMAgent:
         news = self.news.fetch_crypto_news(5)
         onchain = self.onchain.latest_block()
 
+        for pair, price in prices.items():
+            self.broker.update_price(pair, price)
+
         return {
             "prices": prices,
             "signals": signals,
@@ -205,6 +208,7 @@ Acciones válidas: buy, sell, hold.
                 signal = self._fallback_strategy.entry_signal(df, last)
                 if signal == "long":
                     price = last["close"]
+                    self.broker.update_price(pair, price)
                     stake = self.get_available_capital() * 0.2
                     qty = stake / price if price > 0 else 0
                     if qty > 0:
