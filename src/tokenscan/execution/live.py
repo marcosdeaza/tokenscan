@@ -37,7 +37,15 @@ class LiveBroker(PaperBroker):
         label = "onchain"
         w = self.db.get_wallet_by_label(label)
         if w is None:
-            self._wallet_id = self.db.create_wallet(label, "USDC", 0.0)
+            try:
+                self._wallet_id = self.db.create_wallet(label, "USDC", 0.0)
+            except Exception:
+                # Carrera con otro proceso (run + telegram arrancan juntos):
+                # otro ya la creó entre el get y el insert.
+                w = self.db.get_wallet_by_label(label)
+                if w is None:
+                    raise
+                self._wallet_id = w["id"]
         else:
             self._wallet_id = w["id"]
         self.load_open_positions()
