@@ -41,6 +41,7 @@ class StrategyConfig(BaseModel):
     ema_fast: int = 12
     ema_slow: int = 26
     ema_macro: int = 150
+    min_kaufman_er: float = 0.35
 
 
 class AgentConfig(BaseModel):

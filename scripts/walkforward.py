@@ -54,6 +54,7 @@ def main() -> None:
     parser.add_argument("--window", type=int, default=60, help="días por ventana")
     parser.add_argument("--step", type=int, default=30, help="paso entre ventanas")
     parser.add_argument("--min-trades", type=int, default=3)
+    parser.add_argument("--min-kaufman-er", type=float, default=0.0)
     args = parser.parse_args()
 
     data4h = {p: load(p, "4h") for p in PAIRS}
@@ -79,7 +80,8 @@ def main() -> None:
             break
         market = WindowMarket(frames, daily)
         params = {"fast": args.fast, "slow": args.slow, "ema_macro": args.ema_macro,
-                  "sl_mult": args.sl, "tp_mult": args.tp}
+                  "sl_mult": args.sl, "tp_mult": args.tp,
+                  "min_kaufman_er": args.min_kaufman_er}
         r = run_case(settings, market, params, args.window,
                      end_dt=win_end.to_pydatetime())
         m = r.metrics()

@@ -22,6 +22,7 @@ strategy:
   ema_fast: 12
   ema_slow: 26
   ema_macro: 140          # EMA diaria del gate macro (solo long si precio > EMA)
+  min_kaufman_er: 0.35    # filtro de calidad de tendencia: exige ER>=0.35 en la entrada
 
 # --- Gestión de riesgo ---
 risk:

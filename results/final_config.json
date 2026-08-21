@@ -1,29 +1,30 @@
 {
   "short_90d": {
-    "return_pct": 34.527259196456725,
+    "return_pct": 34.53,
     "trades": 9,
     "win_rate": 100.0,
     "max_dd": 1.17,
     "sharpe": 2.02,
-    "profit_factor": Infinity,
+    "profit_factor": "Infinity",
     "n_obs": 538,
     "dsr": 0.8129
   },
   "long_250d": {
-    "return_pct": 20.154279879467683,
-    "trades": 20,
-    "win_rate": 50.0,
-    "max_dd": 10.76,
-    "sharpe": 0.67,
-    "profit_factor": 2.48,
+    "return_pct": 16.55,
+    "trades": 19,
+    "win_rate": 47.4,
+    "max_dd": 13.44,
+    "sharpe": 0.57,
+    "profit_factor": 2.18,
     "n_obs": 1498,
-    "dsr": 0.987
+    "dsr": 0.9857
   },
   "params": {
     "fast": 12,
     "slow": 26,
     "ema_macro": 140,
     "sl_mult": 2.0,
-    "tp_mult": 4.0
+    "tp_mult": 4.0,
+    "min_kaufman_er": 0.35
   }
 }

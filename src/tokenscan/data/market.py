@@ -22,6 +22,11 @@ class MarketData:
         df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("timestamp", inplace=True)
+        # El gate macro (EMA diaria) necesita saber a qué par pertenece el frame
+        # para usar el histórico diario completo (macro_daily) en vez del fallback
+        # de resample 1D. Sin esto, producción calculaba un gate distinto al del
+        # backtest validado.
+        df.attrs["pair"] = pair
         return df
 
 

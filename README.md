@@ -67,8 +67,10 @@ asesora, la matemática ejecuta):
 ### Estrategia por defecto: `macro_gate`
 
 Filtro macro defensivo long-only. Solo abre posición si el precio cotiza por
-encima de una EMA diaria larga (**140 días**) y la tendencia rápida es alcista;
-cierra si cruza por debajo o la tendencia se debilita. En mercados bajistas se
+encima de una EMA diaria larga (**140 días**), la tendencia rápida es alcista y
+la **eficiencia de Kaufman ≥ 0.35** (exige que la entrada tenga dirección real:
+las entradas con tendencia débil son las que revierten en 1-3 velas). Cierra si
+cruza por debajo o la tendencia se debilita. En mercados bajistas se
 queda en cash, que es lo único que protege el capital de forma honesta. El
 sizing es por vol-targeting determinista (independiente del capital).
 
@@ -77,11 +79,12 @@ Backtest con velas 4h (BTC/ETH/SOL, comisión 0.1% + slippage 0.05%):
 | Horizonte | Resultado | Trades | Win rate | PF | DD máx | Sharpe | DSR |
 |-----------|-----------|--------|----------|----|--------|--------|-----|
 | 90 días   | +34.5%    | 9      | 100%     | ∞  | 1.17%  | 2.02   | 0.813 |
-| 250 días  | +20.2%    | 20     | 50%      | 2.48 | 10.76% | 0.67   | 0.987 |
+| 250 días  | +16.5%    | 19     | 47%      | 2.18 | 13.44% | 0.57   | 0.986 |
 
 Resultados reproducibles en `results/final_config.json` (config óptima:
-`ema_macro=140`, `atr_sl_multiplier=2.0`, `atr_tp_multiplier=4.0`, encontrada con
-`scripts/optimize_macro.py` sobre el motor real de backtest).
+`ema_macro=140`, `min_kaufman_er=0.35`, `atr_sl_multiplier=2.0`,
+`atr_tp_multiplier=4.0`, encontrada con `scripts/optimize_macro.py` sobre el
+motor real de backtest y validada con `scripts/walkforward.py`).
 
 El gate deja **correr los ganadores**: el TP amplio (4 ATR) y sin trailing hacen
 que el bot mantenga el hold mientras la tendencia vive y cobre al tocar techo o
@@ -93,13 +96,14 @@ ganancias; los bajistas quedan fuera del mercado.
 
 **Validación anti-overfitting.** Dos capas:
 
-1. **DSR (Deflated Sharpe Ratio):** 0.987 a 250d y 0.813 a 90d. El DSR descuenta
+1. **DSR (Deflated Sharpe Ratio):** 0.986 a 250d y 0.813 a 90d. El DSR descuenta
    el "fishing": probar muchas configs hasta acertar. Ver `scripts/dsr.py`.
-2. **Walk-forward honesto** (`scripts/walkforward.py`, 2.6 años, ventanas de 90
-   días con paso de 45): **9 de 21 ventanas positivas (43%)** y retorno mediano
-   negativo. Es la realidad: la estrategia captura los rallies alcistas y sufre
-   en sideways/bajistas. El +34.5% de 90d se concentra en el rally reciente — por
-   eso arranca en modo paper y con gestión de riesgo estricta.
+2. **Walk-forward honesto** (`scripts/walkforward.py`, 2.6 años, ventanas de 60
+   días con paso de 30): con el filtro Kaufman **13 de 32 ventanas positivas
+   (41%)** y retorno mediano en torno a 0% — frente al 25% y retorno mediano
+   −5% sin el filtro. Es la realidad: la estrategia captura los rallies alcistas
+   y sufre en sideways/bajistas. El +34.5% de 90d se concentra en el rally
+   reciente — por eso arranca en modo paper y con gestión de riesgo estricta.
 
 > La estrategia **no corta a los ganadores**: usa un take-profit amplio (4 ATR)
 > y sin trailing stop, de modo que mantiene la posición mientras el mercado

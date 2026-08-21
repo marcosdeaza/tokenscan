@@ -98,10 +98,15 @@ class MacroGate(TrendFollowing):
     name = "macro_gate"
 
     def __init__(self, fast: int = 12, slow: int = 26, ema_macro: int = 200,
-                 macro_daily: dict[str, pd.Series] | None = None):
+                 macro_daily: dict[str, pd.Series] | None = None,
+                 min_kaufman_er: float = 0.0):
         super().__init__(fast=fast, slow=slow)
         self.ema_macro = ema_macro
         self.macro_daily = macro_daily or {}
+        # Filtro de calidad de tendencia: exige un mínimo de direccionalidad en
+        # la entrada. Las entradas con ER bajo (tendencia débil) son las que
+        # revierten en 1-3 velas (los "trades malos").
+        self.min_kaufman_er = min_kaufman_er
 
     def compute_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         out = add_indicators(df)
@@ -128,9 +133,11 @@ class MacroGate(TrendFollowing):
         macro = row.get("ema_macro", 0)
         fast = row.get("ema_fast", 0)
         slow = row.get("ema_slow", 0)
-        if macro and close > macro and fast > slow:
-            return "long"
-        return None
+        if not (macro and close > macro and fast > slow):
+            return None
+        if self.min_kaufman_er > 0 and row.get("kaufman_er", 0) < self.min_kaufman_er:
+            return None
+        return "long"
 
     def exit_signal(self, df: pd.DataFrame, row: pd.Series, side: str) -> bool:
         close = row.get("close", 0)

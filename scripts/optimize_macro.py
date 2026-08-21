@@ -71,7 +71,8 @@ def run_case(settings: Settings, market: CachedMarket, params: dict, days: int,
     s.risk.trailing_stop_pct = 0.0
     bt = Backtester(s, market)  # type: ignore[arg-type]
     strategy = get_strategy("macro_gate", fast=params["fast"], slow=params["slow"],
-                            ema_macro=params["ema_macro"])
+                            ema_macro=params["ema_macro"],
+                            min_kaufman_er=params.get("min_kaufman_er", 0.0))
     strategy.macro_daily = market.macro_daily()
     return bt.run(strategy, pairs=PAIRS, days=days, end_dt=end_dt)
 

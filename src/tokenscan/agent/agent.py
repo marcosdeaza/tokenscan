@@ -63,6 +63,7 @@ class LLMAgent:
             kwargs = {"fast": settings.strategy.ema_fast, "slow": settings.strategy.ema_slow}
             if name == "macro_gate":
                 kwargs["ema_macro"] = settings.strategy.ema_macro
+                kwargs["min_kaufman_er"] = settings.strategy.min_kaufman_er
         self._fallback_strategy = get_strategy(name, **kwargs)
 
     @property
@@ -93,7 +94,7 @@ class LLMAgent:
         macro_daily: dict[str, pd.Series] = {}
         for pair in self._supported_pairs():
             try:
-                df = self.market.fetch_ohlcv(pair, "1d", 500)
+                df = self.market.fetch_ohlcv(pair, "1d", 1000)
                 macro_daily[pair] = df["close"]
             except Exception as e:  # noqa: BLE001
                 log.warning("Macro daily %s: %s", pair, e)

@@ -30,6 +30,7 @@ results/backtest_test.png
 results/sweep_*.json
 results/test_macro.json
 results/sweep.json
+results/optimize_macro.json
 !results/.gitkeep
 
 # Logs
