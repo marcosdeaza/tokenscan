@@ -22,8 +22,6 @@ strategy:
   ema_fast: 12
   ema_slow: 26
   ema_macro: 150          # EMA diaria del gate macro (solo long si precio > EMA)
-  atr_sl_multiplier: 2.5
-  atr_tp_multiplier: 4.0   # TP amplio: deja correr el crecimiento, no corta pronto
 
 # --- Gestión de riesgo ---
 risk:

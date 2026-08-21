@@ -147,6 +147,8 @@ def make_signals(df: pd.DataFrame, params: dict, reg: str | None,
             macro_close = params.get("_macro_close")
             if macro_close is not None:
                 ema_macro_series = macro_close.ewm(span=macro_ema, adjust=False).mean()
+                # Sin look-ahead: EMA diaria conocida solo al cerrar el día -> shift(1).
+                ema_macro_series = ema_macro_series.shift(1)
                 aligned = ema_macro_series.reindex(close_s.index, method="ffill")
                 macro_bull = (close > aligned.values)
         else:

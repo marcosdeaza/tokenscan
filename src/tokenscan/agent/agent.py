@@ -8,6 +8,7 @@ El agente sigue el patrón de ai-hedge-fund (prompt + JSON parser) pero:
 
 from __future__ import annotations
 
+import itertools
 import json
 from dataclasses import dataclass
 
@@ -261,12 +262,6 @@ class LLMAgent:
         }
 
     def _build_prompt(self, ctx: dict) -> str:
-        equity = ctx.get("wallet", {}).get("balance", 0) or 0
-        max_pct = self.s.effective_max_pct(equity)
-        sizing_rule = (
-            f"usa hasta ~{int(max_pct * 100)}% del capital en una sola operación "
-            f"(modo {'micro/auto (cuenta pequeña)' if max_pct >= 0.9 else 'standard'})"
-        )
         return f"""Eres un agente de trading cuantitativo con IA. Tu objetivo es hacer crecer el capital.
 
 CONTEXTO ACTUAL:
@@ -289,7 +284,9 @@ REGLAS:
   compra, y en tendencia se aguanta la posición.
 - Con posición abierta en tendencia alcista (macro_gate='long'), aguanta el hold:
   no vendas por nervios ni por pequeñas caídas. Deja correr el crecimiento.
-- Tamaño de posición: {sizing_rule}.
+- LA CANTIDAD LA DECIDE LA MATEMÁTICA, NO TÚ: el sistema recalcula el tamaño de
+  posición con ATR + vol-targeting. Pon 'quantity' aproximada; se ignora y se
+  recalcula de forma determinista. Tú decides dirección (buy/sell/hold) y par.
 - Riesgo máximo por operación: 1% del capital (sizing por volatilidad/ATR).
 - Respeta el régimen: en 'trend_up' prioriza compras, en 'trend_down' evita comprar,
   en 'ranging' busca reversión (RSI/Bollinger).
@@ -448,13 +445,16 @@ Acciones válidas: buy, sell, hold.
         Con capital pequeño el sizing ATR puede quedar por debajo del mínimo
         operativo; en ese caso usa el % máximo por posición para que el bot
         siga operando con stakes razonables (p. ej. ~20% de $12).
+
+        Vol-targeting (patrón de llm-quant): el % máximo por posición se escala
+        por (vol_objetivo / vol_realizada). Si la volatilidad sube, la exposición
+        baja sola y viceversa. Así el riesgo por posición se mantiene constante.
         """
-        from ..quant.risk import position_size_atr
+        from ..quant.risk import portfolio_vol_target, position_size_atr
         equity = self.get_available_capital()
         min_stake = self.s.jupiter.min_trade_usd
-        # El tier (micro/standard/auto) decide cuánto capital exponer:
-        # micro despliega casi todo, standard es conservador.
         max_pct = self.s.effective_max_pct(equity)
+        target_vol = self.s.risk.vol_target_annual
         if atr_value and atr_value > 0 and price > 0:
             stake = position_size_atr(
                 self.s.risk, equity, atr_value, price,
@@ -463,9 +463,25 @@ Acciones válidas: buy, sell, hold.
                 open_trades=len(self.broker.open_positions()),
             )
             if stake < min_stake:
-                stake = equity * max_pct
-            return max(0.0, stake)
+                scaled = portfolio_vol_target(
+                    equity, self._daily_returns(), target_vol=target_vol,
+                    max_leverage=self.s.risk.vol_max_leverage,
+                )
+                stake = scaled * max_pct
+            return max(0.0, min(stake, equity * max_pct))
         return equity * max_pct
+
+    def _daily_returns(self) -> list[float]:
+        """Returns diarios de la cartera para el vol-targeting (máx. 30)."""
+        try:
+            rows = self.db.equity_curve(self.broker.wallet_id)[-30:]
+            out = []
+            for prev, cur in itertools.pairwise(rows):
+                if prev["equity"] > 0:
+                    out.append(cur["equity"] / prev["equity"] - 1)
+            return out
+        except Exception:  # noqa: BLE001
+            return []
 
     def get_available_capital(self) -> float:
         return self.broker.get_balance()
@@ -479,13 +495,22 @@ Acciones válidas: buy, sell, hold.
             price = self.broker.price(d.pair)
             if price <= 0:
                 return
-            stake = d.quantity * price
-            if stake > self.broker.get_balance():
-                stake = self.broker.get_balance() * 0.95
+            # El tamaño de posición es SIEMPRE determinista (matemática manda):
+            # el LLM propone dirección, nunca la cantidad. Vol-targeting + ATR.
+            equity = self.broker.get_balance()
+            atr_value = 0.0
+            try:
+                df = self.market.fetch_ohlcv(d.pair, self.s.timeframe, 200)
+                atr_value = float(df["atr"].iloc[-1]) if "atr" in df.columns else 0.0
+            except Exception as e:  # noqa: BLE001
+                log.warning("ATR fetch %s: %s", d.pair, e)
+            stake = self._position_size(price, atr_value)
+            stake = max(0.0, min(stake, equity * 0.95))
             if stake < self.s.jupiter.min_trade_usd:
                 log.info("[AGENT] stake too small for %s (%.2f < min %.2f)",
                          d.pair, stake, self.s.jupiter.min_trade_usd)
                 return
+            d.quantity = stake / price
             sl, tp = self._stops(d.pair, "long", price)
             pos = self.broker.open_trade(d.pair, "long", stake, price, sl, tp)
             log.info("[AGENT] BUY %s qty=%.4f stake=%.2f conf=%.0f — %s",

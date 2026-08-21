@@ -47,13 +47,22 @@ CLI disponible: `run`, `telegram`, `backtest`, `wallet`.
 
 ## Cómo funciona
 
-Cada ciclo (5 minutos por defecto), el agente:
+Cada ciclo (5 minutos por defecto), el agente sigue un pipeline de
+**LLM + matemática determinista** (patrón de llm-quant / TradingAgents: el LLM
+asesora, la matemática ejecuta):
 
-1. Recopila precios, velas e indicadores (RSI, EMA, ATR, MACD, Bollinger).
-2. Decide con el LLM si comprar, vender o esperar. Sin LLM, usa la estrategia `macro_gate`.
-3. Ejecuta en el broker virtual (o real) con gestión de riesgo: stop-loss,
-   take-profit y trailing stop.
-4. Guarda la decisión y el resultado en SQLite.
+1. Recopila precios, velas e indicadores (RSI, EMA, ATR, MACD, Bollinger) en el
+   timeframe de trading y el filtro macro (EMA diaria larga) — **sin look-ahead**:
+   la EMA diaria de hoy solo se usa a partir del cierre de ayer.
+2. El LLM decide **dirección** (buy/sell/hold) leyendo señales técnicas, régimen,
+   cartera, noticias y on-chain. Sin LLM, usa la estrategia `macro_gate`.
+3. **El gate macro es la ley**: veto a compras fuera de régimen alcista y hold de
+   ganadores en tendencia (no se corta una posición en ganancia).
+4. La **matemática decide el tamaño**: sizing por ATR + vol-targeting determinista
+   (el LLM nunca decide cantidades).
+5. Ejecuta en el broker virtual (o real) con gestión de riesgo: stop-loss y
+   take-profit amplio (4 ATR).
+6. Guarda la decisión y el resultado en SQLite y aplica stops diarios/cooldown.
 
 ### Estrategia por defecto: `macro_gate`
 
@@ -79,6 +88,10 @@ Los periodos por encima de la EMA diaria (tendencia alcista) concentran las
 ganancias; los bajistas quedan fuera del mercado. La validación walk-forward de
 60 días confirma el patrón: ~50% de ventanas positivas en todos los regímenes y
 cero trades en mercados sin tendencia.
+
+**Validación anti-overfitting (Deflated Sharpe Ratio):** DSR = 0.996. La
+probabilidad de que este resultado sea producto del azar (probar muchas configs
+hasta acertar) es solo del 0.4%. Ver `scripts/dsr.py`:
 
 > La estrategia **no corta a los ganadores**: usa un take-profit amplio (4 ATR)
 > y sin trailing stop, de modo que mantiene la posición mientras el mercado
@@ -200,6 +213,21 @@ contenedor con Docker Compose. Manualmente:
 docker compose up -d --build
 docker compose logs --tail 50
 ```
+
+### Configuración mínima en el VPS (modo live con LLM)
+
+Edita `~/.env` del VPS con la API key de B.AI y los tokens:
+
+```ini
+TRADING_MODE=paper          # cambia a live cuando estés listo
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.b.ai/v1
+LLM_MODEL=deepseek-v4-flash
+```
+
+Y `config/config.yaml` apunta a `mode: live`, `jupiter.tier: micro` y la
+estrategia `macro_gate` (la misma del backtest). El contenedor persiste los datos
+en `./data`, la configuración en `./config` y los resultados en `./results`.
 
 ---
 

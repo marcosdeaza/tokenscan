@@ -110,12 +110,17 @@ class MacroGate(TrendFollowing):
         if daily is not None and len(daily.dropna()) > 20:
             span = min(self.ema_macro, max(20, len(daily.dropna()) // 3))
             ema_macro_daily = daily.ewm(span=span, adjust=False).mean()
-            out["ema_macro"] = ema_macro_daily.reindex(out.index, method="ffill")
+            # Sin look-ahead: la EMA diaria del día D solo es conocida al final del
+            # día D. Desplazamos 1 día para que la vela intraday de hoy use la EMA
+            # calculada hasta el cierre de ayer (patrón freqtrade/jesse).
+            ema_known = ema_macro_daily.shift(1)
+            out["ema_macro"] = ema_known.reindex(out.index, method="ffill")
         else:
             close_daily = out["close"].resample("1D").last()
             span = min(self.ema_macro, max(20, len(close_daily.dropna()) // 3))
             ema_macro_daily = close_daily.ewm(span=span, adjust=False).mean()
-            out["ema_macro"] = ema_macro_daily.reindex(out.index, method="ffill")
+            ema_known = ema_macro_daily.shift(1)
+            out["ema_macro"] = ema_known.reindex(out.index, method="ffill")
         return out
 
     def entry_signal(self, df: pd.DataFrame, row: pd.Series) -> str | None:
