@@ -113,12 +113,11 @@ class LLMAgent:
         exits = self.broker.check_exits(prices)
         for e in exits:
             log.info("[AGENT] Salida automática: %s — pnl=%.4f", e.get("exit_reason", "?"), e.get("pnl_abs", 0))
-            if self.s.mode != "live":
-                self.notifier.trade_closed(
-                    e.get("pair", "?"), e.get("exit_reason", "?"),
-                    e.get("pnl_abs", 0.0), e.get("pnl_ratio", 0.0),
-                    e.get("signature"),
-                )
+            self.notifier.trade_closed(
+                e.get("pair", "?"), e.get("exit_reason", "?"),
+                e.get("pnl_abs", 0.0), e.get("pnl_ratio", 0.0),
+                e.get("signature"),
+            )
 
         self._gate_exit()
 
@@ -140,6 +139,7 @@ class LLMAgent:
                 log.warning("[AGENT] Error ejecutando %s %s: %s", d.action, d.pair, e)
 
         self._log_cycle(decisions)
+        self.notifier.cycle_summary(len(decisions))
         return decisions
 
     # ── LLM decision ──────────────────────────────────────────
@@ -516,11 +516,10 @@ Acciones válidas: buy, sell, hold.
             pos = self.broker.open_trade(d.pair, "long", stake, price, sl, tp)
             log.info("[AGENT] BUY %s qty=%.4f stake=%.2f conf=%.0f — %s",
                      d.pair, d.quantity, stake, d.confidence, d.reasoning[:60])
-            if self.s.mode != "live":
-                self.notifier.trade_opened(
-                    d.pair, "long", pos.amount, pos.open_price, stake,
-                    d.confidence, d.reasoning, pos.signature,
-                )
+            self.notifier.trade_opened(
+                d.pair, "long", pos.amount, pos.open_price, stake,
+                d.confidence, d.reasoning, pos.signature,
+            )
         elif d.action == "sell":
             for pos in self.broker.positions.values():
                 if pos.pair == d.pair:

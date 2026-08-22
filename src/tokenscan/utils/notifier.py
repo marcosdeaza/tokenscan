@@ -35,10 +35,11 @@ class TelegramNotifier:
 
     def trade_opened(self, pair: str, side: str, qty: float, price: float,
                      stake: float, conf: float, reasoning: str = "", signature: str = "") -> None:
+        base = pair.split("/")[0]
         emoji = "🟢 BUY" if side == "long" else "🔴 SELL"
         lines = [
             f"<b>{emoji} {pair}</b>",
-            f"  • Cantidad: {qty:.4f} SOL",
+            f"  • Cantidad: {qty:.4f} {base}",
             f"  • Precio: {price:.2f} USDC",
             f"  • Capital: {stake:.2f} USDC",
             f"  • Confianza: {conf:.0f}%",
